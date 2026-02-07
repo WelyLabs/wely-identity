@@ -33,20 +33,28 @@ public class BusinessIdMapper extends AbstractOIDCProtocolMapper implements OIDC
     }
 
     @Override
-    public String getId() { return PROVIDER_ID; }
+    public String getId() {
+        return PROVIDER_ID;
+    }
 
     @Override
-    public String getDisplayType() { return "JIT Business ID Mapper"; }
+    public String getDisplayType() {
+        return "JIT Business ID Mapper";
+    }
 
     @Override
-    public String getHelpText() { return "Appelle le service utilisateur pour récupérer le businessId si absent"; }
+    public String getHelpText() {
+        return "Appelle le service utilisateur pour récupérer le businessId si absent";
+    }
 
     @Override
-    public String getDisplayCategory() { return "Token Mapper"; }
+    public String getDisplayCategory() {
+        return "Token Mapper";
+    }
 
     @Override
     protected void setClaim(IDToken token, ProtocolMapperModel mappingModel, UserSessionModel userSession,
-                            KeycloakSession keycloakSession, ClientSessionContext clientSessionCtx) {
+            KeycloakSession keycloakSession, ClientSessionContext clientSessionCtx) {
 
         UserModel user = userSession.getUser();
         String bId = user.getFirstAttribute("businessId");
@@ -63,10 +71,21 @@ public class BusinessIdMapper extends AbstractOIDCProtocolMapper implements OIDC
     }
 
     private String fetchFromUserService(String keycloakId) {
-        String serviceUrl = "http://host.docker.internal:8082/user-service/profile/resolve/" + keycloakId;
+        // Détection de l'environnement via le profil Quarkus
+        // start-dev → profile contient "dev", start → profile = "prod"
+        String profile = System.getProperty("quarkus.profile", "prod");
+        boolean isDev = profile.contains("dev");
+
+        // URL du service utilisateur selon l'environnement
+        String baseUrl = isDev
+                ? "http://host.docker.internal:8082/user-service" // Docker Compose dev
+                : "http://wely-users-service:8082/user-service"; // Kubernetes internal service
+
+        String serviceUrl = baseUrl + "/profile/resolve/" + keycloakId;
         String secret = "REDACTED-INTERNAL-SECRET";
 
-        log.info(">>> JIT Mapper: Tentative d'appel vers " + serviceUrl);
+        log.info(">>> JIT Mapper: Profile=" + profile + ", Environment=" + (isDev ? "DEV" : "PROD") + ", URL="
+                + serviceUrl);
 
         try {
             URL url = new URL(serviceUrl);
@@ -90,7 +109,7 @@ public class BusinessIdMapper extends AbstractOIDCProtocolMapper implements OIDC
                     System.out.println(">>> JIT Mapper: ID récupéré et nettoyé = " + result);
                     return result.isEmpty() ? null : result;
                 }
-            } else  {
+            } else {
                 throw new RuntimeException("Erreur lors de l'appel au service utilisateur");
             }
         } catch (Exception e) {
