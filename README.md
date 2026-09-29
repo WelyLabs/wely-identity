@@ -122,6 +122,18 @@ Le realm `calendar-app` définit :
 
 Voir [`MAPPER_CONFIGURATION.md`](MAPPER_CONFIGURATION.md) pour la procédure de configuration dans la console.
 
+### Secret du client confidentiel
+
+L'export de realm porte `"secret": "CHANGE_ME_AT_IMPORT"` pour `calendar-users-api-client` : un secret réel n'a pas sa place dans un fichier versionné. Après import, définir la vraie valeur — elle doit correspondre à `KEYCLOAK_CLIENT_SECRET` côté `users-api` :
+
+```bash
+kcadm.sh update clients/$(kcadm.sh get clients -r calendar-app \
+    -q clientId=calendar-users-api-client --fields id --format csv --noquotes) \
+  -r calendar-app -s secret="$KEYCLOAK_CLIENT_SECRET"
+```
+
+En local, le realm est initialisé par `keycloak-init.sql` (overlay `local` du dépôt d'infra), qui utilise une valeur factice.
+
 ---
 
 ## Limites connues

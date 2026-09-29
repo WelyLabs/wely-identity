@@ -722,7 +722,7 @@
     "enabled" : true,
     "alwaysDisplayInConsole" : false,
     "clientAuthenticatorType" : "client-secret",
-    "secret" : "REDACTED-KC-CLIENT-SECRET",
+    "secret" : "CHANGE_ME_AT_IMPORT",
     "redirectUris" : [ "/*" ],
     "webOrigins" : [ "/*" ],
     "notBefore" : 0,
