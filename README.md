@@ -1,4 +1,4 @@
-# calendar-app-identity-service-config
+# wely-identity
 
 Configuration Keycloak de la plateforme [Wely Calendar](https://github.com/WelyLabs/wely-platform) : export du realm, thème, et un **plugin Java custom** qui fait le pont entre l'identité Keycloak et l'identité métier.
 
@@ -27,7 +27,7 @@ sequenceDiagram
     participant U as Utilisateur
     participant KC as Keycloak
     participant M as BusinessIdMapper
-    participant API as calendar-users-api
+    participant API as wely-users
     participant DB as PostgreSQL
 
     U->>KC: authentification
@@ -114,22 +114,22 @@ Keycloak démarre sur `:8080` en `start-dev`, avec import automatique du realm e
 
 ## Configuration du realm
 
-Le realm `calendar-app` définit :
+Le realm `wely-web` définit :
 
-- le client public **`calendar-app`** utilisé par le frontend (flow OIDC) ;
-- le client confidentiel **`calendar-users-api-client`** (`client_credentials`) permettant à `calendar-users-api` d'appeler l'Admin API ;
+- le client public **`wely-web`** utilisé par le frontend (flow OIDC) ;
+- le client confidentiel **`calendar-users-api-client`** (`client_credentials`) permettant à `wely-users` d'appeler l'Admin API ;
 - le mapper **`businessId`** attaché au client frontend, qui injecte le claim.
 
 Voir [`MAPPER_CONFIGURATION.md`](MAPPER_CONFIGURATION.md) pour la procédure de configuration dans la console.
 
 ### Secret du client confidentiel
 
-L'export de realm porte `"secret": "CHANGE_ME_AT_IMPORT"` pour `calendar-users-api-client` : un secret réel n'a pas sa place dans un fichier versionné. Après import, définir la vraie valeur — elle doit correspondre à `KEYCLOAK_CLIENT_SECRET` côté `calendar-users-api` :
+L'export de realm porte `"secret": "CHANGE_ME_AT_IMPORT"` pour `calendar-users-api-client` : un secret réel n'a pas sa place dans un fichier versionné. Après import, définir la vraie valeur — elle doit correspondre à `KEYCLOAK_CLIENT_SECRET` côté `wely-users` :
 
 ```bash
-kcadm.sh update clients/$(kcadm.sh get clients -r calendar-app \
+kcadm.sh update clients/$(kcadm.sh get clients -r wely-web \
     -q clientId=calendar-users-api-client --fields id --format csv --noquotes) \
-  -r calendar-app -s secret="$KEYCLOAK_CLIENT_SECRET"
+  -r wely-web -s secret="$KEYCLOAK_CLIENT_SECRET"
 ```
 
 En local, le realm est initialisé par `keycloak-init.sql` (overlay `local` du dépôt d'infra), qui utilise une valeur factice.
@@ -138,8 +138,6 @@ En local, le realm est initialisé par `keycloak-init.sql` (overlay `local` du d
 
 ## Limites connues
 
-- **Le secret partagé de l'appel interne est en dur** dans le code du mapper et dans `calendar-users-api`. Il doit être externalisé en variable d'environnement des deux côtés.
-- **`calendar-app-realm.json` contient un client secret** ; l'export doit être nettoyé et le secret injecté au démarrage.
-- **Pas de `.gitignore`** : des artefacts de build (`target/`, `.class`, `.jar`) sont suivis par Git.
-- **Appel HTTP bloquant** dans le mapper (`HttpURLConnection`, timeout 3 s) — acceptable puisque Keycloak n'est pas réactif et que l'appel n'a lieu qu'une fois par compte, mais il ajoute une dépendance dure : si `calendar-users-api` est indisponible lors d'une première connexion, le token est émis sans `businessId`.
+- **Le secret du client confidentiel doit être réinjecté après import** : l'export porte volontairement `CHANGE_ME_AT_IMPORT` (voir ci-dessus). Un secret réel figure encore dans l'historique Git de ce dépôt et doit être révoqué.
+- **Appel HTTP bloquant** dans le mapper (`HttpURLConnection`, timeout 3 s) — acceptable puisque Keycloak n'est pas réactif et que l'appel n'a lieu qu'une fois par compte, mais il ajoute une dépendance dure : si `wely-users` est indisponible lors d'une première connexion, le token est émis sans `businessId`.
 - **Journalisation via `System.out`** plutôt qu'un logger.
