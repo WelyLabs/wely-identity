@@ -27,7 +27,7 @@ sequenceDiagram
     participant U as Utilisateur
     participant KC as Keycloak
     participant M as BusinessIdMapper
-    participant API as users-api
+    participant API as calendar-users-api
     participant DB as PostgreSQL
 
     U->>KC: authentification
@@ -117,14 +117,14 @@ Keycloak démarre sur `:8080` en `start-dev`, avec import automatique du realm e
 Le realm `calendar-app` définit :
 
 - le client public **`calendar-app`** utilisé par le frontend (flow OIDC) ;
-- le client confidentiel **`calendar-users-api-client`** (`client_credentials`) permettant à `users-api` d'appeler l'Admin API ;
+- le client confidentiel **`calendar-users-api-client`** (`client_credentials`) permettant à `calendar-users-api` d'appeler l'Admin API ;
 - le mapper **`businessId`** attaché au client frontend, qui injecte le claim.
 
 Voir [`MAPPER_CONFIGURATION.md`](MAPPER_CONFIGURATION.md) pour la procédure de configuration dans la console.
 
 ### Secret du client confidentiel
 
-L'export de realm porte `"secret": "CHANGE_ME_AT_IMPORT"` pour `calendar-users-api-client` : un secret réel n'a pas sa place dans un fichier versionné. Après import, définir la vraie valeur — elle doit correspondre à `KEYCLOAK_CLIENT_SECRET` côté `users-api` :
+L'export de realm porte `"secret": "CHANGE_ME_AT_IMPORT"` pour `calendar-users-api-client` : un secret réel n'a pas sa place dans un fichier versionné. Après import, définir la vraie valeur — elle doit correspondre à `KEYCLOAK_CLIENT_SECRET` côté `calendar-users-api` :
 
 ```bash
 kcadm.sh update clients/$(kcadm.sh get clients -r calendar-app \
@@ -138,8 +138,8 @@ En local, le realm est initialisé par `keycloak-init.sql` (overlay `local` du d
 
 ## Limites connues
 
-- **Le secret partagé de l'appel interne est en dur** dans le code du mapper et dans `users-api`. Il doit être externalisé en variable d'environnement des deux côtés.
+- **Le secret partagé de l'appel interne est en dur** dans le code du mapper et dans `calendar-users-api`. Il doit être externalisé en variable d'environnement des deux côtés.
 - **`calendar-app-realm.json` contient un client secret** ; l'export doit être nettoyé et le secret injecté au démarrage.
 - **Pas de `.gitignore`** : des artefacts de build (`target/`, `.class`, `.jar`) sont suivis par Git.
-- **Appel HTTP bloquant** dans le mapper (`HttpURLConnection`, timeout 3 s) — acceptable puisque Keycloak n'est pas réactif et que l'appel n'a lieu qu'une fois par compte, mais il ajoute une dépendance dure : si `users-api` est indisponible lors d'une première connexion, le token est émis sans `businessId`.
+- **Appel HTTP bloquant** dans le mapper (`HttpURLConnection`, timeout 3 s) — acceptable puisque Keycloak n'est pas réactif et que l'appel n'a lieu qu'une fois par compte, mais il ajoute une dépendance dure : si `calendar-users-api` est indisponible lors d'une première connexion, le token est émis sans `businessId`.
 - **Journalisation via `System.out`** plutôt qu'un logger.
