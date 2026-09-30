@@ -82,7 +82,14 @@ public class BusinessIdMapper extends AbstractOIDCProtocolMapper implements OIDC
                 : "http://wely-users-service:8082/user-service"; // Kubernetes internal service
 
         String serviceUrl = baseUrl + "/profile/resolve/" + keycloakId;
-        String secret = "mon-secret-local-123";
+        // Must match app.internal-secret on the users-api side. Injected by the
+        // deployment; no fallback on purpose, so a missing value fails loudly
+        // rather than silently authenticating with a well-known string.
+        String secret = System.getenv("INTERNAL_SECRET");
+        if (secret == null || secret.isBlank()) {
+            log.error(">>> JIT Mapper: INTERNAL_SECRET is not set, cannot resolve businessId");
+            return null;
+        }
 
         log.info(">>> JIT Mapper: Profile=" + profile + ", Environment=" + (isDev ? "DEV" : "PROD") + ", URL="
                 + serviceUrl);
