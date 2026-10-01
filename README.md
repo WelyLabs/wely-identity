@@ -114,9 +114,9 @@ Keycloak démarre sur `:8080` en `start-dev`, avec import automatique du realm e
 
 ## Configuration du realm
 
-Le realm `wely-web` définit :
+Le realm `wely-realm` définit :
 
-- le client public **`wely-web`** utilisé par le frontend (flow OIDC) ;
+- le client public **`wely-client`** utilisé par le frontend (flow OIDC) ;
 - le client confidentiel **`wely-users-api-client`** (`client_credentials`) permettant à `wely-users` d'appeler l'Admin API ;
 - le mapper **`businessId`** attaché au client frontend, qui injecte le claim.
 
@@ -124,20 +124,28 @@ Voir [`MAPPER_CONFIGURATION.md`](MAPPER_CONFIGURATION.md) pour la procédure de 
 
 ### Secret du client confidentiel
 
-L'export de realm porte `"secret": "CHANGE_ME_AT_IMPORT"` pour `wely-users-api-client` : un secret réel n'a pas sa place dans un fichier versionné. Après import, définir la vraie valeur — elle doit correspondre à `KEYCLOAK_CLIENT_SECRET` côté `wely-users` :
+L'export porte `"secret": "${KC_CLIENT_SECRET}"` pour `wely-users-api-client`. Keycloak résout les placeholders `${VARIABLE}` depuis l'environnement **au moment de l'import**, donc aucun secret réel n'est versionné et aucune étape manuelle n'est nécessaire : il suffit que `KC_CLIENT_SECRET` soit présent dans l'environnement du conteneur Keycloak, et qu'il corresponde à `KEYCLOAK_CLIENT_SECRET` côté `wely-users`.
+
+Sur un realm déjà existant, la valeur se change dans la console, ou :
 
 ```bash
-kcadm.sh update clients/$(kcadm.sh get clients -r wely-web \
+kcadm.sh update clients/$(kcadm.sh get clients -r wely-realm \
     -q clientId=wely-users-api-client --fields id --format csv --noquotes) \
-  -r wely-web -s secret="$KEYCLOAK_CLIENT_SECRET"
+  -r wely-realm -s secret="$KEYCLOAK_CLIENT_SECRET"
 ```
 
-En local, le realm est initialisé par `keycloak-init.sql` (overlay `local` du dépôt d'infra), qui utilise une valeur factice.
+### Import du realm
+
+`wely-realm.json` est copié dans l'image, sous `/opt/keycloak/data/import/`. Il n'est lu que si le conteneur démarre avec `--import-realm`, ce que fait l'overlay `local` et que ne font ni `dev` ni `prod`.
+
+Keycloak **ignore un realm déjà existant** à l'import, donc le drapeau est sans danger ; il reste malgré tout hors des environnements dont le realm porte un état réel.
+
+> **L'export ne contient aucun identifiant.** Les quatre comptes qui portaient des hachages de mots de passe en ont été retirés : un Keycloak local démarre sans utilisateur, et on s'inscrit depuis l'application — ce qui est aussi le chemin qui exerce le *provisioning* JIT autour duquel ce projet est construit.
 
 ---
 
 ## Limites connues
 
-- **Le secret du client confidentiel doit être réinjecté après import** : l'export porte volontairement `CHANGE_ME_AT_IMPORT` (voir ci-dessus). Un secret réel figure encore dans l'historique Git de ce dépôt et doit être révoqué.
+- **Un secret réel figure encore dans l'historique Git de ce dépôt.** Il a été révoqué le 2026-10-01 : le secret du client a été régénéré via l'API Admin et rescellé. L'export courant ne porte qu'un placeholder.
 - **Appel HTTP bloquant** dans le mapper (`HttpURLConnection`, timeout 3 s) — acceptable puisque Keycloak n'est pas réactif et que l'appel n'a lieu qu'une fois par compte, mais il ajoute une dépendance dure : si `wely-users` est indisponible lors d'une première connexion, le token est émis sans `businessId`.
 - **Journalisation via `System.out`** plutôt qu'un logger.
