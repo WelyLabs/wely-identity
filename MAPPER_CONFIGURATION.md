@@ -2,7 +2,7 @@
 
 ## Problème Identifié
 
-Le plugin `BusinessIdMapper` est bien chargé par Keycloak, mais il n'est **pas configuré** dans le client `calendar-app-client`. C'est pourquoi il n'est jamais appelé lors de la génération des tokens.
+Le plugin `BusinessIdMapper` est bien chargé par Keycloak, mais il n'est **pas configuré** dans le client `wely-client`. C'est pourquoi il n'est jamais appelé lors de la génération des tokens.
 
 ## Solution : Ajouter le Mapper au Client
 
@@ -10,8 +10,8 @@ Le plugin `BusinessIdMapper` est bien chargé par Keycloak, mais il n'est **pas 
 
 1. Connecte-toi à l'admin Keycloak : `https://auth.welylabs.app/admin`
 2. Sélectionne le realm `calendar-app`
-3. Va dans **Clients** → `calendar-app-client`
-4. Onglet **Client scopes** → Clique sur le scope dédié (ex: `calendar-app-client-dedicated`)
+3. Va dans **Clients** → `wely-client`
+4. Onglet **Client scopes** → Clique sur le scope dédié (ex: `wely-client-dedicated`)
 5. Onglet **Mappers** → **Add mapper** → **By configuration**
 6. Sélectionne **JIT Business ID Mapper**
 7. Configure :
@@ -24,7 +24,7 @@ Le plugin `BusinessIdMapper` est bien chargé par Keycloak, mais il n'est **pas 
 
 ### Option 2 : Via Export/Import (Pour automatiser)
 
-Ajoute cette configuration dans ton fichier `calendar-app-realm.json` :
+Ajoute cette configuration dans ton fichier `wely-realm.json` :
 
 ```json
 {

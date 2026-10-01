@@ -1,6 +1,6 @@
 {
   "id": "1652565b-23ef-42a5-9b2c-1287d008e1e3",
-  "realm": "calendar-app",
+  "realm": "wely-realm",
   "displayName": "",
   "displayNameHtml": "",
   "notBefore": 0,
@@ -302,8 +302,8 @@
           "attributes": {}
         }
       ],
-      "calendar-app-client": [],
-      "calendar-users-api-client": [],
+      "wely-client": [],
+      "wely-users-api-client": [],
       "security-admin-console": [],
       "admin-cli": [],
       "account-console": [],
@@ -499,12 +499,12 @@
     },
     {
       "id": "938386eb-79ac-4a28-8ebb-a50f44a52e40",
-      "username": "service-account-calendar-users-api-client",
+      "username": "service-account-wely-users-api-client",
       "emailVerified": false,
       "enabled": true,
       "createdTimestamp": 1765912069244,
       "totp": false,
-      "serviceAccountClientId": "calendar-users-api-client",
+      "serviceAccountClientId": "wely-users-api-client",
       "credentials": [],
       "disableableCredentialTypes": [],
       "requiredActions": [],
@@ -648,13 +648,13 @@
       "clientId": "account",
       "name": "${client_account}",
       "rootUrl": "${authBaseUrl}",
-      "baseUrl": "/realms/calendar-app/account/",
+      "baseUrl": "/realms/wely-realm/account/",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "/realms/calendar-app/account/*"
+        "/realms/wely-realm/account/*"
       ],
       "webOrigins": [],
       "notBefore": 0,
@@ -695,13 +695,13 @@
       "clientId": "account-console",
       "name": "${client_account-console}",
       "rootUrl": "${authBaseUrl}",
-      "baseUrl": "/realms/calendar-app/account/",
+      "baseUrl": "/realms/wely-realm/account/",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "/realms/calendar-app/account/*"
+        "/realms/wely-realm/account/*"
       ],
       "webOrigins": [],
       "notBefore": 0,
@@ -837,7 +837,7 @@
     },
     {
       "id": "9cbadcae-a924-47ec-8e35-e6bd8e2ee33e",
-      "clientId": "calendar-app-client",
+      "clientId": "wely-client",
       "name": "",
       "description": "",
       "rootUrl": "https://web.welylabs.app",
@@ -888,7 +888,7 @@
           "protocolMapper": "oidc-audience-mapper",
           "consentRequired": false,
           "config": {
-            "included.client.audience": "calendar-app-client",
+            "included.client.audience": "wely-client",
             "id.token.claim": "true",
             "lightweight.claim": "false",
             "access.token.claim": "true",
@@ -928,7 +928,7 @@
     },
     {
       "id": "717a9e61-3f16-4378-b057-814ff141a9f3",
-      "clientId": "calendar-users-api-client",
+      "clientId": "wely-users-api-client",
       "name": "",
       "description": "",
       "rootUrl": "",
@@ -1493,7 +1493,7 @@
           "protocolMapper": "oidc-audience-mapper",
           "consentRequired": false,
           "config": {
-            "included.client.audience": "calendar-app-client",
+            "included.client.audience": "wely-client",
             "id.token.claim": "false",
             "lightweight.claim": "false",
             "access.token.claim": "true",
