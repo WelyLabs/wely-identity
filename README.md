@@ -74,7 +74,7 @@ La variable d'environnement est injectée par Kubernetes ; le repli couvre le d�
 ## Contenu du dépôt
 
 ```
-├── calendar-app-realm.json          export du realm (clients, rôles, flows, mappers)
+├── wely-realm.json          export du realm (clients, rôles, flows, mappers)
 ├── Dockerfile                       image Keycloak + plugin + thème
 ├── plugins/
 │   └── business-id-mapper/          plugin Java (Maven)
@@ -117,18 +117,18 @@ Keycloak démarre sur `:8080` en `start-dev`, avec import automatique du realm e
 Le realm `wely-web` définit :
 
 - le client public **`wely-web`** utilisé par le frontend (flow OIDC) ;
-- le client confidentiel **`calendar-users-api-client`** (`client_credentials`) permettant à `wely-users` d'appeler l'Admin API ;
+- le client confidentiel **`wely-users-api-client`** (`client_credentials`) permettant à `wely-users` d'appeler l'Admin API ;
 - le mapper **`businessId`** attaché au client frontend, qui injecte le claim.
 
 Voir [`MAPPER_CONFIGURATION.md`](MAPPER_CONFIGURATION.md) pour la procédure de configuration dans la console.
 
 ### Secret du client confidentiel
 
-L'export de realm porte `"secret": "CHANGE_ME_AT_IMPORT"` pour `calendar-users-api-client` : un secret réel n'a pas sa place dans un fichier versionné. Après import, définir la vraie valeur — elle doit correspondre à `KEYCLOAK_CLIENT_SECRET` côté `wely-users` :
+L'export de realm porte `"secret": "CHANGE_ME_AT_IMPORT"` pour `wely-users-api-client` : un secret réel n'a pas sa place dans un fichier versionné. Après import, définir la vraie valeur — elle doit correspondre à `KEYCLOAK_CLIENT_SECRET` côté `wely-users` :
 
 ```bash
 kcadm.sh update clients/$(kcadm.sh get clients -r wely-web \
-    -q clientId=calendar-users-api-client --fields id --format csv --noquotes) \
+    -q clientId=wely-users-api-client --fields id --format csv --noquotes) \
   -r wely-web -s secret="$KEYCLOAK_CLIENT_SECRET"
 ```
 
