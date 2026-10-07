@@ -1,8 +1,8 @@
 {
   "id": "1652565b-23ef-42a5-9b2c-1287d008e1e3",
   "realm": "wely-realm",
-  "displayName": "",
-  "displayNameHtml": "",
+  "displayName": "Wely",
+  "displayNameHtml": "<span class=\"brand-name\">Wely</span><div class=\"brand-pitch\"><p class=\"brand-title\">Vos agendas, partagés avec ceux qui comptent.</p><ul class=\"brand-points\"><li>Suivez les événements de vos amis et rejoignez-les en un clic</li><li>Discutez en temps réel, sans quitter votre agenda</li><li>Un fil pour voir ce qui se passe autour de vous</li></ul></div><span class=\"brand-note\">Projet open source · démo réinitialisée chaque nuit</span>",
   "notBefore": 0,
   "defaultSignatureAlgorithm": "RS256",
   "revokeRefreshToken": false,
@@ -1871,7 +1871,6 @@
   },
   "internationalizationEnabled": true,
   "supportedLocales": [
-    "en",
     "fr"
   ],
   "defaultLocale": "fr",
