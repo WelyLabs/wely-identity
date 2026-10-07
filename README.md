@@ -32,19 +32,17 @@ sequenceDiagram
 
     U->>KC: authentification
     KC->>M: émission du token
-    M->>KC: attribut "businessId" présent ?
-
-    alt déjà résolu
-        KC-->>M: businessId (cache)
-    else première connexion
-        M->>API: GET /user-service/profile/resolve/{keycloakId}<br/>X-Internal-Secret
+    M->>API: GET /user-service/profile/resolve/{keycloakId}<br/>X-Internal-Secret
+    alt wely-users répond
         API->>DB: recherche par keycloak_id
         alt inconnu
             API->>DB: création + hashtag unique
             API->>API: publie USER_CREATED sur Kafka
         end
         API-->>M: businessId
-        M->>KC: mémorise l'attribut sur l'utilisateur
+        M->>KC: met à jour l'attribut "businessId" s'il diffère
+    else wely-users injoignable
+        KC-->>M: attribut "businessId" (repli)
     end
 
     M-->>KC: claim businessId
@@ -55,7 +53,9 @@ sequenceDiagram
 
 **Le provisioning est paresseux (JIT).** L'utilisateur métier est créé au moment de la première émission de token, pas avant. Aucun batch de synchronisation, aucun webhook : tout utilisateur capable d'obtenir un token existe forcément côté application, quelle que soit la façon dont son compte Keycloak a été créé.
 
-**La résolution n'a lieu qu'une fois.** Le résultat est mémorisé comme attribut utilisateur Keycloak ; les émissions suivantes lisent le cache sans appel réseau. Le coût est donc d'un seul appel HTTP dans la vie d'un compte.
+**`wely-users` fait foi, l'attribut Keycloak n'est qu'un repli.** Chaque émission de token interroge `wely-users` — une requête indexée sur `keycloak_id`. L'identifiant obtenu est recopié dans un attribut de l'utilisateur Keycloak, qui ne sert que si `wely-users` est injoignable : une panne ne bloque donc pas les connexions des comptes existants.
+
+La version précédente lisait l'attribut d'abord et n'appelait `wely-users` que s'il était vide. Le 2026-10-02, la table `app_user` de dev a été vidée par erreur : tous les comptes ont continué de recevoir des tokens portant un identifiant disparu, avec un 404 sur leur profil et rien pour le corriger. Désormais, un compte perdu est recréé — et l'attribut réparé — à l'émission de token suivante.
 
 ### Découverte de l'URL
 
@@ -79,7 +79,10 @@ La variable d'environnement est injectée par Kubernetes ; le repli couvre le d�
 ├── plugins/
 │   └── business-id-mapper/          plugin Java (Maven)
 │       └── src/main/
-│           ├── java/com/calendar/BusinessIdMapper.java
+│           ├── java/com/calendar/
+│           │   ├── BusinessIdMapper.java      le mapper, branché sur Keycloak
+│           │   ├── BusinessIdResolver.java    wely-users d'abord, attribut en repli
+│           │   └── UsersServiceClient.java    appel HTTP à wely-users
 │           └── resources/META-INF/services/
 │               └── org.keycloak.protocol.ProtocolMapper    ← enregistrement SPI
 ├── themes/                          thème de connexion personnalisé
@@ -93,7 +96,7 @@ La variable d'environnement est injectée par Kubernetes ; le repli couvre le d�
 
 ```bash
 cd plugins/business-id-mapper
-./mvnw package                       # → target/keycloak-1.0-SNAPSHOT.jar
+./mvnw package                       # tests + target/keycloak-1.0-SNAPSHOT.jar
 ```
 
 Le `Dockerfile` construit une image Keycloak avec le JAR déposé dans `/opt/keycloak/providers/` et le thème dans `/opt/keycloak/themes/`.
@@ -114,9 +117,9 @@ Keycloak démarre sur `:8080` en `start-dev`, avec import automatique du realm e
 
 ## Configuration du realm
 
-Le realm `wely-web` définit :
+Le realm `wely-realm` définit :
 
-- le client public **`wely-web`** utilisé par le frontend (flow OIDC) ;
+- le client public **`wely-client`** utilisé par le frontend (flow OIDC) ;
 - le client confidentiel **`wely-users-api-client`** (`client_credentials`) permettant à `wely-users` d'appeler l'Admin API ;
 - le mapper **`businessId`** attaché au client frontend, qui injecte le claim.
 
@@ -124,20 +127,27 @@ Voir [`MAPPER_CONFIGURATION.md`](MAPPER_CONFIGURATION.md) pour la procédure de 
 
 ### Secret du client confidentiel
 
-L'export de realm porte `"secret": "CHANGE_ME_AT_IMPORT"` pour `wely-users-api-client` : un secret réel n'a pas sa place dans un fichier versionné. Après import, définir la vraie valeur — elle doit correspondre à `KEYCLOAK_CLIENT_SECRET` côté `wely-users` :
+L'export porte `"secret": "${KC_CLIENT_SECRET}"` pour `wely-users-api-client`. Keycloak résout les placeholders `${VARIABLE}` depuis l'environnement **au moment de l'import**, donc aucun secret réel n'est versionné et aucune étape manuelle n'est nécessaire : il suffit que `KC_CLIENT_SECRET` soit présent dans l'environnement du conteneur Keycloak, et qu'il corresponde à `KEYCLOAK_CLIENT_SECRET` côté `wely-users`.
+
+Sur un realm déjà existant, la valeur se change dans la console, ou :
 
 ```bash
-kcadm.sh update clients/$(kcadm.sh get clients -r wely-web \
+kcadm.sh update clients/$(kcadm.sh get clients -r wely-realm \
     -q clientId=wely-users-api-client --fields id --format csv --noquotes) \
-  -r wely-web -s secret="$KEYCLOAK_CLIENT_SECRET"
+  -r wely-realm -s secret="$KEYCLOAK_CLIENT_SECRET"
 ```
 
-En local, le realm est initialisé par `keycloak-init.sql` (overlay `local` du dépôt d'infra), qui utilise une valeur factice.
+### Import du realm
+
+`wely-realm.json` est copié dans l'image, sous `/opt/keycloak/data/import/`. Il n'est lu que si le conteneur démarre avec `--import-realm`, ce que fait l'overlay `local` et que ne font ni `dev` ni `prod`.
+
+Keycloak **ignore un realm déjà existant** à l'import, donc le drapeau est sans danger ; il reste malgré tout hors des environnements dont le realm porte un état réel.
+
+> **L'export ne contient aucun identifiant.** Les quatre comptes qui portaient des hachages de mots de passe en ont été retirés : un Keycloak local démarre sans utilisateur, et on s'inscrit depuis l'application — ce qui est aussi le chemin qui exerce le *provisioning* JIT autour duquel ce projet est construit.
 
 ---
 
 ## Limites connues
 
-- **Le secret du client confidentiel doit être réinjecté après import** : l'export porte volontairement `CHANGE_ME_AT_IMPORT` (voir ci-dessus). Un secret réel figure encore dans l'historique Git de ce dépôt et doit être révoqué.
-- **Appel HTTP bloquant** dans le mapper (`HttpURLConnection`, timeout 3 s) — acceptable puisque Keycloak n'est pas réactif et que l'appel n'a lieu qu'une fois par compte, mais il ajoute une dépendance dure : si `wely-users` est indisponible lors d'une première connexion, le token est émis sans `businessId`.
-- **Journalisation via `System.out`** plutôt qu'un logger.
+- **Un secret réel figure encore dans l'historique Git de ce dépôt.** Il a été révoqué le 2026-10-01 : le secret du client a été régénéré via l'API Admin et rescellé. L'export courant ne porte qu'un placeholder.
+- **Appel HTTP bloquant** à chaque émission de token (`java.net.http`, timeout 3 s) — Keycloak n'est pas réactif, il n'y a rien à qui rendre un résultat asynchrone. Si `wely-users` est injoignable, l'attribut mis en cache prend le relais ; s'il n'y en a pas (toute première connexion), la connexion échoue plutôt que d'émettre un token sans `businessId`.

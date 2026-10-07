@@ -463,41 +463,6 @@
   "webAuthnPolicyPasswordlessExtraOrigins": [],
   "users": [
     {
-      "id": "75e2292b-7dd1-4991-8e03-09a489389f13",
-      "username": "darth",
-      "firstName": "Théo",
-      "lastName": "Banette",
-      "email": "theo@banette.com",
-      "emailVerified": false,
-      "attributes": {
-        "businessId": [
-          "ccbcbe14-32ef-45a4-af75-7e9a5dee9e8f"
-        ],
-        "locale": [
-          "fr"
-        ]
-      },
-      "enabled": true,
-      "createdTimestamp": 1768569425222,
-      "totp": false,
-      "credentials": [
-        {
-          "id": "ad0d4e48-1e2f-4da3-bb10-99e4cfca18e7",
-          "type": "password",
-          "createdDate": 1768569425369,
-          "secretData": "{\"value\":\"2hu5z9gYswbV6m/Y4FVNu4pPcVEciV6HAPtoGuD++s8=\",\"salt\":\"P9kPHnlWTcBuH2H38kGXOw==\",\"additionalParameters\":{}}",
-          "credentialData": "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
-        }
-      ],
-      "disableableCredentialTypes": [],
-      "requiredActions": [],
-      "realmRoles": [
-        "default-roles-calendar-app"
-      ],
-      "notBefore": 0,
-      "groups": []
-    },
-    {
       "id": "938386eb-79ac-4a28-8ebb-a50f44a52e40",
       "username": "service-account-wely-users-api-client",
       "emailVerified": false,
@@ -517,108 +482,6 @@
           "view-users"
         ]
       },
-      "notBefore": 0,
-      "groups": []
-    },
-    {
-      "id": "b028f4db-38f4-4dd4-bb35-c69b62e643ce",
-      "username": "testwebsocket",
-      "firstName": "test",
-      "lastName": "websocket",
-      "email": "test@websocket.com",
-      "emailVerified": false,
-      "attributes": {
-        "businessId": [
-          "6800733b-cf19-4070-bab5-d0fa07642a4f"
-        ],
-        "locale": [
-          "fr"
-        ]
-      },
-      "enabled": true,
-      "createdTimestamp": 1769073579172,
-      "totp": false,
-      "credentials": [
-        {
-          "id": "db483dc7-7374-41c0-b5bf-45f404027b85",
-          "type": "password",
-          "createdDate": 1769073579535,
-          "secretData": "{\"value\":\"n/cA8by1RUZD3P3xo2FEN9jHz5t6WFqCGyU5a9jeZlE=\",\"salt\":\"d+rtOUo3J4Pjwz0tJeruOQ==\",\"additionalParameters\":{}}",
-          "credentialData": "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
-        }
-      ],
-      "disableableCredentialTypes": [],
-      "requiredActions": [],
-      "realmRoles": [
-        "default-roles-calendar-app"
-      ],
-      "notBefore": 0,
-      "groups": []
-    },
-    {
-      "id": "977de6b2-cf1d-4577-907c-93de593e1d0e",
-      "username": "yami",
-      "firstName": "Dylan",
-      "lastName": "Languet",
-      "email": "yami@test.com",
-      "emailVerified": false,
-      "attributes": {
-        "businessId": [
-          "dc5babf3-4213-4b61-a31f-bde783268912"
-        ],
-        "locale": [
-          "fr"
-        ]
-      },
-      "enabled": true,
-      "createdTimestamp": 1768569598753,
-      "totp": false,
-      "credentials": [
-        {
-          "id": "97a41324-ad63-43ae-ab5a-8f115f9cef54",
-          "type": "password",
-          "createdDate": 1768569598905,
-          "secretData": "{\"value\":\"GHfr91URTX5msEicCj18X6NH7WxU6AiMvqAa5JDvKTo=\",\"salt\":\"NYYszqrTPFOohUGenRvxIA==\",\"additionalParameters\":{}}",
-          "credentialData": "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
-        }
-      ],
-      "disableableCredentialTypes": [],
-      "requiredActions": [],
-      "realmRoles": [
-        "default-roles-calendar-app"
-      ],
-      "notBefore": 0,
-      "groups": []
-    },
-    {
-      "id": "94fb2c7a-ec9f-47c6-b99a-d7f4ce88909c",
-      "username": "yamiichi",
-      "firstName": "Dylan",
-      "lastName": "Languet",
-      "email": "dylanlanguet@hotmail.fr",
-      "emailVerified": false,
-      "attributes": {
-        "locale": [
-          "fr"
-        ]
-      },
-      "enabled": true,
-      "createdTimestamp": 1770136914270,
-      "totp": false,
-      "credentials": [
-        {
-          "id": "edad7bc5-7057-4ba7-91e9-cc6fc2955a33",
-          "type": "password",
-          "createdDate": 1770136914513,
-          "secretData": "{\"value\":\"A6LMYQ5dnpKtLzb5QSPOI0q7vye7rucmrfci7Kza5Pk=\",\"salt\":\"SPIwnI7tr/vmA1eTN/RgkA==\",\"additionalParameters\":{}}",
-          "credentialData": "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
-        }
-      ],
-      "disableableCredentialTypes": [],
-      "requiredActions": [],
-      "realmRoles": [
-        "default-roles-calendar-app"
-      ],
       "notBefore": 0,
       "groups": []
     }
@@ -938,7 +801,7 @@
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
-      "secret": "CHANGE_ME_AT_IMPORT",
+      "secret": "${KC_CLIENT_SECRET}",
       "redirectUris": [
         "/*"
       ],

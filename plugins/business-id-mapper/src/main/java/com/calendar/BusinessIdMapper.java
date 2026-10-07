@@ -7,17 +7,15 @@ import org.keycloak.representations.IDToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
 public class BusinessIdMapper extends AbstractOIDCProtocolMapper implements OIDCAccessTokenMapper, OIDCIDTokenMapper {
 
     public static final String PROVIDER_ID = "jit-business-id-mapper";
+    static final String BUSINESS_ID_ATTRIBUTE = "businessId";
+    static final String DEFAULT_CLAIM_NAME = "businessId";
+
     private static final Logger log = LoggerFactory.getLogger(BusinessIdMapper.class);
 
     private static final List<ProviderConfigProperty> configProperties = new ArrayList<>();
@@ -25,6 +23,17 @@ public class BusinessIdMapper extends AbstractOIDCProtocolMapper implements OIDC
     static {
         OIDCAttributeMapperHelper.addTokenClaimNameConfig(configProperties);
         OIDCAttributeMapperHelper.addIncludeInTokensConfig(configProperties, BusinessIdMapper.class);
+    }
+
+    private final BusinessIdResolver resolver;
+
+    /** Used by Keycloak, which loads providers through {@link java.util.ServiceLoader}. */
+    public BusinessIdMapper() {
+        this(new BusinessIdResolver(UsersServiceClient.fromEnvironment()));
+    }
+
+    BusinessIdMapper(BusinessIdResolver resolver) {
+        this.resolver = resolver;
     }
 
     @Override
@@ -44,7 +53,7 @@ public class BusinessIdMapper extends AbstractOIDCProtocolMapper implements OIDC
 
     @Override
     public String getHelpText() {
-        return "Appelle le service utilisateur pour récupérer le businessId si absent";
+        return "Resolves the application business id through wely-users and adds it as a claim";
     }
 
     @Override
@@ -57,72 +66,16 @@ public class BusinessIdMapper extends AbstractOIDCProtocolMapper implements OIDC
             KeycloakSession keycloakSession, ClientSessionContext clientSessionCtx) {
 
         UserModel user = userSession.getUser();
-        String bId = user.getFirstAttribute("businessId");
+        String cachedId = user.getFirstAttribute(BUSINESS_ID_ATTRIBUTE);
+        String businessId = resolver.resolve(user.getId(), cachedId);
 
-        if (bId == null || bId.isEmpty()) {
-            bId = fetchFromUserService(user.getId());
-            if (bId != null) {
-                user.setSingleAttribute("businessId", bId);
-            }
+        // Keeps the fallback current, and repairs a cache that points at a lost user.
+        if (!businessId.equals(cachedId)) {
+            log.info("Business id of {} set to {} (was {})", user.getId(), businessId, cachedId);
+            user.setSingleAttribute(BUSINESS_ID_ATTRIBUTE, businessId);
         }
 
         String claimName = mappingModel.getConfig().get(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME);
-        token.getOtherClaims().put(claimName != null ? claimName : "businessId", bId);
-    }
-
-    private String fetchFromUserService(String keycloakId) {
-        // Détection de l'environnement via variable d'environnement (injectée par Kubernetes)
-        String baseUrl = System.getenv("USERS_API_URL");
-        
-        // Fallback si la variable n'est pas définie
-        if (baseUrl == null || baseUrl.trim().isEmpty()) {
-            String profile = System.getProperty("quarkus.profile", "prod");
-            boolean isLocalDev = profile.contains("dev");
-            baseUrl = isLocalDev
-                    ? "http://host.docker.internal:8082" // Docker Compose dev
-                    : "http://wely-users-service:8082"; // Kubernetes internal service (prod)
-        }
-
-        String serviceUrl = baseUrl + "/user-service/profile/resolve/" + keycloakId;
-
-        // Must match app.internal-secret on the users-api side. Injected by the
-        // deployment; no fallback on purpose, so a missing value fails loudly
-        // rather than silently authenticating with a well-known string.
-        String secret = System.getenv("INTERNAL_SECRET");
-        if (secret == null || secret.isBlank()) {
-            log.error(">>> JIT Mapper: INTERNAL_SECRET is not set, cannot resolve businessId");
-            return null;
-        }
-
-        log.info(">>> JIT Mapper: Resolved USERS_API_URL=" + baseUrl + " -> Calling: " + serviceUrl);
-
-        try {
-            URL url = new URL(serviceUrl);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(3000);
-            conn.setRequestProperty("X-Internal-Secret", secret);
-
-            int responseCode = conn.getResponseCode();
-            System.out.println(">>> JIT Mapper: Code réponse = " + responseCode);
-
-            if (responseCode == 200) {
-                try (BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-                    StringBuilder response = new StringBuilder();
-                    String inputLine;
-                    while ((inputLine = in.readLine()) != null) {
-                        response.append(inputLine);
-                    }
-
-                    String result = response.toString().trim().replace("\"", "");
-                    System.out.println(">>> JIT Mapper: ID récupéré et nettoyé = " + result);
-                    return result.isEmpty() ? null : result;
-                }
-            } else {
-                throw new RuntimeException("Erreur lors de l'appel au service utilisateur");
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        token.getOtherClaims().put(claimName != null ? claimName : DEFAULT_CLAIM_NAME, businessId);
     }
 }
