@@ -5,8 +5,9 @@ WORKDIR /app
 # Copy the plugin source
 COPY plugins/business-id-mapper /app/plugins/business-id-mapper
 
-# Build the plugin
-RUN mvn -f /app/plugins/business-id-mapper/pom.xml clean package -DskipTests
+# Build the plugin. Tests run here on purpose: CI has no other Maven step, so this is the
+# only place a broken mapper can be stopped before it reaches the login of every user.
+RUN mvn -f /app/plugins/business-id-mapper/pom.xml clean package
 
 # Final Keycloak image
 FROM quay.io/keycloak/keycloak:latest
