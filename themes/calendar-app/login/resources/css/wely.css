@@ -1,0 +1,647 @@
+/*
+ * Wely login screen.
+ *
+ * Composition: the brand on a gradient panel on the left, a narrow card on the right, on the
+ * application's warm canvas with three slowly drifting colour fields behind it.
+ *
+ * THE COLOURS ARE WRITTEN HERE ON PURPOSE. This theme is served by Keycloak, not by the
+ * application, so it cannot read wely-web's stylesheet. The block below COPIES the tokens of
+ * wely-web/src/styles.scss and must follow them; every other value goes through it.
+ */
+:root {
+  /* The application has no dark theme, so neither has the screen that leads into it. */
+  color-scheme: light;
+
+  --wely-blue: #2563eb;
+  --wely-orange: #f97316;
+  /*
+   * The app's --accent-gradient, interpolated in OKLCH instead of sRGB. Between this blue and
+   * this orange, sRGB passes through a dull grey-mauve that showed across the whole panel and
+   * the button; OKLCH keeps the chroma and goes through violet and pink instead. The sRGB
+   * line stays first as the fallback for a browser without colour-space interpolation.
+   */
+  --wely-gradient: linear-gradient(135deg, #3b82f6 0%, #f97316 100%);
+  --wely-gradient: linear-gradient(135deg in oklch, #3b82f6 0%, #f97316 100%);
+
+  --wely-canvas: #fcfaf7;
+  --wely-card: #ffffff;
+  --wely-border: #ebe7e0;
+  --wely-ink: #1a1a1a;
+  --wely-ink-2: #6b6b6b;
+  --wely-on-brand: #ffffff;
+  --wely-success: #16a34a;
+
+  --wely-radius: 12px;
+}
+
+/*
+ * Fonts are bundled, never loaded from a CDN: the login screen must not depend on a third
+ * party being up. Files from @fontsource/outfit 5.3.0 (OFL-1.1), the face of the app.
+ */
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/outfit-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/outfit-latin-500-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../fonts/outfit-latin-600-normal.woff2') format('woff2');
+}
+
+/*
+ * PatternFly's variables first: redefining them tints the button, fields, links and headings
+ * at once without naming a component.
+ */
+:root {
+  --pf-v5-global--primary-color--100: var(--wely-blue);
+  --pf-v5-global--primary-color--200: var(--wely-blue);
+  --pf-v5-global--link--Color: var(--wely-blue);
+  --pf-v5-global--link--Color--hover: var(--wely-blue);
+  --pf-v5-global--active-color--100: var(--wely-blue);
+
+  --pf-v5-global--Color--100: var(--wely-ink);
+  --pf-v5-global--Color--200: var(--wely-ink-2);
+
+  --pf-v5-global--FontFamily--text: Outfit, -apple-system, 'Segoe UI', sans-serif;
+  --pf-v5-global--FontFamily--heading: Outfit, -apple-system, 'Segoe UI', sans-serif;
+  --pf-v5-global--FontFamily--redhat-text: Outfit, -apple-system, 'Segoe UI', sans-serif;
+  --pf-v5-global--FontFamily--redhat-display: Outfit, -apple-system, 'Segoe UI', sans-serif;
+
+  --pf-v5-global--BorderRadius--sm: var(--wely-radius);
+  --pf-v5-global--BorderRadius--lg: var(--wely-radius);
+
+  /* Pinned surfaces: under a dark system setting PatternFly would flip them while the ink
+     forced below stays dark — dark on dark. */
+  --pf-v5-c-login__main--BackgroundColor: var(--wely-card);
+  --pf-v5-c-form-control--BackgroundColor: var(--wely-card);
+  --pf-v5-c-form-control--Color: var(--wely-ink);
+  --pf-v5-global--BackgroundColor--100: var(--wely-card);
+}
+
+/*
+ * The parent's rule is ".login-pf body" (specificity 0-1-1): a bare "body" would lose and the
+ * dark Keycloak photograph would stay. The image is removed separately from the colour, since
+ * the "background" shorthand would reset both.
+ */
+.login-pf body {
+  background-image: none;
+  background-color: var(--wely-canvas);
+  color: var(--wely-ink);
+}
+
+/* ── Layout: brand on the left, sign-in on the right ───────────────────────────────────── */
+
+.pf-v5-c-login {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  padding: 0;
+}
+
+/* PatternFly pads this container with 98px on each side: reset it, or the card shrinks. */
+.pf-v5-c-login__container {
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 44% minmax(0, 1fr);
+  grid-template-areas: 'brand signin';
+  gap: 0;
+}
+
+/* ── Brand panel ─────────────────────────────────────────────────────────────────────────
+ * Its content comes from the realm's displayNameHtml, the only way to add markup without
+ * copying Keycloak's template. That value goes through kcSanitize: an <svg> would be dropped
+ * silently, which is why the check marks below are drawn in CSS.
+ */
+#kc-header {
+  grid-area: brand;
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: clamp(1.5rem, 4.5vh, 3.5rem);
+  color: var(--wely-on-brand);
+  background-image: var(--wely-gradient);
+}
+
+/* A soft light in one corner gives the two-stop gradient some depth. */
+#kc-header::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(60rem 36rem at -10% 110%, rgb(255 255 255 / 0.14), transparent 60%),
+    radial-gradient(30rem 20rem at 110% -10%, rgb(255 255 255 / 0.10), transparent 60%);
+}
+
+#kc-header-wrapper {
+  /* The parent rule carries !important itself. */
+  color: var(--wely-on-brand) !important;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  text-align: start;
+  text-transform: none;
+  letter-spacing: normal;
+  line-height: 1.4;
+}
+
+/* Three groups: the name at the top, the pitch in the middle, the note at the bottom. The
+   free space splits between these two auto margins, with no extra markup. */
+.brand-name,
+.brand-pitch {
+  margin-bottom: auto;
+}
+
+.brand-name {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: clamp(1.5rem, 3.6vh, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* A calendar glyph drawn with two gradients: the ring binding and the page. */
+.brand-name::before {
+  content: '';
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  background:
+    linear-gradient(var(--wely-on-brand), var(--wely-on-brand)) top / 100% 30% no-repeat,
+    rgb(255 255 255 / 0.22);
+  box-shadow: inset 0 0 0 2px var(--wely-on-brand);
+}
+
+.brand-pitch {
+  display: block;
+  max-width: 26rem;
+}
+
+.brand-title {
+  margin: 0 0 clamp(0.875rem, 2.6vh, 1.625rem);
+  font-size: clamp(1.25rem, 3.2vh, 1.75rem);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.brand-points {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.625rem, 1.8vh, 1rem);
+}
+
+.brand-points li {
+  position: relative;
+  padding-inline-start: 1.75rem;
+  font-size: clamp(0.875rem, 1.9vh, 1rem);
+  line-height: 1.5;
+  /* Dimmed through the colour, not opacity: opacity would fight the entrance animation,
+     which ends at 1, and the text would blink at the end of it. */
+  color: color-mix(in oklab, var(--wely-on-brand) 95%, transparent);
+}
+
+.brand-points li::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0.25rem;
+  top: 0.4em;
+  width: 0.3125rem;
+  height: 0.625rem;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.brand-note {
+  display: block;
+  font-size: 0.8125rem;
+  color: color-mix(in oklab, var(--wely-on-brand) 85%, transparent);
+}
+
+/* ── The card ──────────────────────────────────────────────────────────────────────────── */
+
+.pf-v5-c-login__main {
+  grid-area: signin;
+  place-self: center;
+  width: 400px;
+  max-width: calc(100% - 3rem);
+  padding: clamp(1.5rem, 4vh, 2.5rem) 2.375rem clamp(1.25rem, 3vh, 1.875rem);
+  margin: 1.5rem 0;
+  background-color: var(--wely-card);
+  border: 1px solid var(--wely-border);
+  border-radius: var(--wely-radius);
+  /* A thin border holds the shape where the shadow is too soft to see; the short shadow
+     sets the card down, the wide one lifts it off the canvas. */
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 16px 40px rgb(0 0 0 / 0.07);
+}
+
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body {
+  padding: 0;
+}
+
+/* PatternFly paints a 4px blue rule on top of the card header. The button already carries
+   the accent; a second one would say nothing. */
+.pf-v5-c-login__main-header {
+  border-top: 0;
+  margin-bottom: 1.5rem;
+}
+
+#kc-page-title {
+  font-size: 1.625rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+/*
+ * The subtitle lives in the stylesheet because Keycloak has no message key for a second line
+ * under the title, and login.ftl escapes msg(). Copying login.ftl would freeze its WebAuthn
+ * and passkey wiring for one sentence. Scoped to the login page through data-page-id, or it
+ * would show under the error page too.
+ */
+body[data-page-id='login-login'] #kc-page-title::after {
+  content: 'Retrouvez votre agenda, vos amis et vos conversations';
+  display: block;
+  margin-top: 0.375rem;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.45;
+  color: var(--wely-ink-2);
+}
+
+/* ── Fields ──────────────────────────────────────────────────────────────────────────────
+ * The frame goes on the WRAPPER, not on the input: PatternFly nests span > input, and a
+ * border on both draws two frames. The password is a group of two wrappers (input and eye
+ * button), so the frame moves up to the group there.
+ */
+.pf-v5-c-form {
+  gap: 1.25rem;
+}
+
+.pf-v5-c-form__label-text {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--wely-ink-2);
+}
+
+.pf-v5-c-form-control,
+.pf-v5-c-input-group {
+  min-height: 44px;
+}
+
+.pf-v5-c-form-control {
+  border-radius: var(--wely-radius);
+  border: 1px solid var(--wely-border);
+  background-color: var(--wely-card);
+  overflow: hidden;
+  /* currentColor of the focus ring comes from here, so it must be the ink, not a grey. */
+  color: var(--wely-ink);
+  align-items: stretch;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+  --pf-v5-c-form-control--after--BorderBottomColor: transparent;
+  --pf-v5-c-form-control--focus--after--BorderBottomColor: transparent;
+  --pf-v5-c-form-control--hover--after--BorderBottomColor: transparent;
+}
+
+/* PatternFly draws a second, square-cornered frame in ::before: it showed at the corners of
+   the rounded one. */
+.pf-v5-c-form-control::before,
+.pf-v5-c-form-control::after {
+  border: 0;
+}
+
+/* In "stretch" the input fills the 44px, so the text and the caret sit in the middle. */
+.pf-v5-c-form-control > input {
+  height: 100%;
+  padding: 0 0.875rem;
+  border: 0;
+  font-size: 0.9375rem;
+  color: var(--wely-ink);
+  background-color: transparent;
+}
+
+.pf-v5-c-input-group {
+  border: 1px solid var(--wely-border);
+  border-radius: var(--wely-radius);
+  overflow: hidden;
+  background-color: var(--wely-card);
+}
+
+.pf-v5-c-input-group .pf-v5-c-form-control,
+.pf-v5-c-input-group .pf-v5-c-button,
+.pf-v5-c-input-group__item {
+  border: 0;
+  border-radius: 0;
+  align-items: stretch;
+}
+
+.pf-v5-c-input-group .pf-v5-c-form-control {
+  min-height: 0;
+  height: 100%;
+}
+
+.pf-v5-c-input-group .pf-v5-c-button::after {
+  border: 0;
+}
+
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control {
+  --pf-v5-c-button--m-control--BackgroundColor: var(--wely-card);
+  --pf-v5-c-button--m-control--hover--BackgroundColor: var(--wely-canvas);
+  --pf-v5-c-button--m-control--Color: var(--wely-ink);
+  background-color: var(--wely-card);
+  color: var(--wely-ink);
+}
+
+/* One focus ring, around the whole field — eye button included — in the app's blue. The
+   border change carries the signal (WCAG 1.4.11); the soft ring only thickens it. */
+.pf-v5-c-form-control:focus-within,
+.pf-v5-c-input-group:focus-within {
+  outline: none;
+  border-color: var(--wely-blue);
+  box-shadow: 0 0 0 3.5px color-mix(in oklab, var(--wely-blue) 16%, transparent);
+}
+
+/* Inside the password group the inner wrapper matches :focus-within too: paint the ring once. */
+.pf-v5-c-input-group .pf-v5-c-form-control:focus-within {
+  box-shadow: none;
+}
+
+.pf-v5-c-form-control > input:focus,
+.pf-v5-c-form-control > input:focus-visible {
+  outline: none;
+}
+
+.pf-v5-c-button:focus-visible,
+#kc-form a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* ── Button: the app's gradient, the one place the accent appears on the card ──────────── */
+
+.pf-v5-c-button.pf-m-primary {
+  min-height: 44px;
+  border-radius: var(--wely-radius);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--wely-on-brand);
+  background-image: var(--wely-gradient);
+  background-size: 140% 100%;
+  background-position: 0% 0%;
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--wely-blue);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--wely-blue);
+  --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--wely-blue);
+  --pf-v5-c-button--m-primary--active--BackgroundColor: var(--wely-blue);
+  transition: background-position 300ms ease, box-shadow 150ms ease;
+}
+
+/* On hover the gradient slides towards the orange rather than darkening. */
+.pf-v5-c-button.pf-m-primary:hover {
+  background-position: 100% 0%;
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--wely-orange) 28%, transparent);
+}
+
+/* The band holding "Nouvel utilisateur ? S'inscrire". PatternFly draws its top rule with a
+   dark-theme colour under a dark system setting: a thick black line across the card. */
+.pf-v5-c-login__main-footer-band {
+  border-top: 1px solid var(--wely-border);
+  --pf-v5-c-login__main-footer-band--BorderTopColor: var(--wely-border);
+  color: var(--wely-ink-2);
+}
+
+/* ── Card foot: demo credentials and where the password goes ───────────────────────────── */
+
+.wely-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin: clamp(1rem, 2.5vh, 1.625rem) 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--wely-border);
+}
+
+.wely-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0.75rem 0.875rem;
+  border-radius: var(--wely-radius);
+  background-color: color-mix(in oklab, var(--wely-blue) 6%, var(--wely-card));
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.wely-demo-label {
+  font-weight: 600;
+  color: var(--wely-blue);
+}
+
+.wely-demo-credentials {
+  color: var(--wely-ink);
+  /* Selectable in one go, to paste into the fields. */
+  user-select: all;
+}
+
+.wely-secure {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--wely-ink-2);
+}
+
+.wely-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--wely-success);
+}
+
+/* ── Living background ───────────────────────────────────────────────────────────────────
+ * Three blurred colour fields drifting slowly — felt, not watched. Three pseudo-elements
+ * because three fields need three independent layers, and adding elements would mean
+ * copying Keycloak's template.
+ *
+ * Only "transform" is animated: each 90px-blurred layer is rasterised once and then moved by
+ * the compositor. The cycles (28, 34, 40 s) share no useful divisor, so the fields never
+ * line up again and nothing beats time.
+ */
+html::before,
+.login-pf body::before,
+.login-pf body::after {
+  content: '';
+  position: fixed;
+  inset: -30%;
+  z-index: 0;
+  pointer-events: none;
+  filter: blur(90px);
+  will-change: transform;
+}
+
+html::before {
+  background: radial-gradient(38rem 30rem at 80% 12%,
+    color-mix(in oklab, var(--wely-blue) 18%, transparent) 0%, transparent 70%);
+  animation: field-1 34s ease-in-out infinite alternate;
+}
+
+.login-pf body::before {
+  background: radial-gradient(42rem 32rem at 70% 92%,
+    color-mix(in oklab, var(--wely-orange) 18%, transparent) 0%, transparent 70%);
+  animation: field-2 40s ease-in-out infinite alternate;
+}
+
+.login-pf body::after {
+  background: radial-gradient(34rem 26rem at 58% 45%,
+    color-mix(in oklab, var(--wely-blue) 10%, transparent) 0%, transparent 72%);
+  animation: field-3 28s ease-in-out infinite alternate;
+}
+
+@keyframes field-1 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-4%, 3%, 0) scale(1.08); }
+}
+
+@keyframes field-2 {
+  from { transform: translate3d(0, 0, 0) scale(1.05); }
+  to { transform: translate3d(5%, -3%, 0) scale(1); }
+}
+
+@keyframes field-3 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(3%, 4%, 0) scale(1.06); }
+}
+
+/*
+ * Narrow screens: the panel shrinks to a band carrying the name only, above the card. The
+   pitch is for a first look on a desktop; on a phone the form comes first.
+ *
+ * AT THE END OF THE FILE ON PURPOSE: these rules have the same specificity as the ones they
+ * override, so they must come after them — written next to the layout, ".brand-pitch
+ * { display: block }" further down won and the pitch stayed on phones.
+ *
+ * minmax(0, 1fr) and not 1fr: a 1fr track never shrinks below its content's min-content
+ * width, and the brand text pushed the whole page wider than the screen.
+ */
+@media (max-width: 860px) {
+  .pf-v5-c-login__container {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas: 'brand' 'signin';
+  }
+
+  #kc-header {
+    padding: 1rem 1.25rem;
+  }
+
+  .brand-pitch,
+  .brand-note {
+    display: none;
+  }
+
+  .brand-name {
+    margin-bottom: 0;
+    font-size: 1.375rem;
+  }
+
+  .brand-name::before {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 8px;
+  }
+}
+
+/* ── Entrance: the screen appears line by line, both columns at once ───────────────────── */
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* "backwards": invisible during the delay, not shown then hidden. Only opacity and
+   translation move, so the username field takes focus and typing from the first instant. */
+.brand-name,
+.brand-title,
+.brand-points li,
+.brand-note,
+.pf-v5-c-login__main-header,
+#kc-form-login .pf-v5-c-form__group,
+.wely-foot {
+  animation: enter 320ms ease-out backwards;
+}
+
+.brand-title { animation-delay: 60ms; }
+.brand-points li:nth-child(1) { animation-delay: 120ms; }
+.brand-points li:nth-child(2) { animation-delay: 180ms; }
+.brand-points li:nth-child(3) { animation-delay: 240ms; }
+.brand-note { animation-delay: 300ms; }
+
+#kc-form-login .pf-v5-c-form__group:nth-of-type(1) { animation-delay: 60ms; }
+#kc-form-login .pf-v5-c-form__group:nth-of-type(2) { animation-delay: 120ms; }
+#kc-form-login .pf-v5-c-form__group:nth-of-type(3) { animation-delay: 180ms; }
+.wely-foot { animation-delay: 240ms; }
+
+/* WCAG 2.3.3: fields stay, frozen; nothing enters. */
+@media (prefers-reduced-motion: reduce) {
+  html::before,
+  .login-pf body::before,
+  .login-pf body::after,
+  .brand-name,
+  .brand-title,
+  .brand-points li,
+  .brand-note,
+  .pf-v5-c-login__main-header,
+  #kc-form-login .pf-v5-c-form__group,
+  .wely-foot {
+    animation: none;
+  }
+
+  .pf-v5-c-button,
+  .pf-v5-c-form-control {
+    transition: none;
+  }
+}
