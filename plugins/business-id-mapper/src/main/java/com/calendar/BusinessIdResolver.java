@@ -31,11 +31,14 @@ final class BusinessIdResolver {
      * @param keycloakId the Keycloak user id
      * @param cachedId   the business id previously stored on the Keycloak user, or {@code null}
      * @return the business id to put in the token
-     * @throws IllegalStateException when wely-users is unreachable and nothing is cached
+     * @throws IllegalStateException when wely-users has no such user, or is unreachable and nothing is cached
      */
     String resolve(String keycloakId, String cachedId) {
         try {
             return source.resolve(keycloakId);
+        } catch (UnknownUserException e) {
+            // Users are created at registration: no user means no account, cache or not.
+            throw new IllegalStateException("No wely-users user for " + keycloakId, e);
         } catch (IOException e) {
             if (cachedId == null || cachedId.isBlank()) {
                 throw new IllegalStateException("Cannot resolve the business id of " + keycloakId, e);

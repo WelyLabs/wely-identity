@@ -18,44 +18,52 @@ Un **mapper de protocole Keycloak** enrichit le token à l'émission. Les servic
 
 ---
 
-## `BusinessIdMapper`
+## Création des utilisateurs et `businessId`
 
-Plugin Java déployé dans Keycloak (`plugins/business-id-mapper/`), enregistré comme `ProtocolMapper` via le SPI standard.
+Le plugin Java (`plugins/business-id-mapper/`) apporte deux briques à Keycloak :
+
+- **`BusinessUserRegistration`**, une étape du formulaire d'inscription (`FormAction`) : elle crée l'utilisateur dans `wely-users` dès que le compte Keycloak existe ;
+- **`BusinessIdMapper`**, un `ProtocolMapper` : à chaque émission de token, il lit le `businessId` et l'ajoute au token.
 
 ```mermaid
 sequenceDiagram
     participant U as Utilisateur
     participant KC as Keycloak
+    participant R as BusinessUserRegistration
     participant M as BusinessIdMapper
     participant API as wely-users
-    participant DB as PostgreSQL
 
-    U->>KC: authentification
-    KC->>M: émission du token
-    M->>API: GET /user-service/profile/resolve/{keycloakId}<br/>X-Internal-Secret
+    U->>KC: formulaire d'inscription
+    KC->>KC: crée le compte (transaction ouverte)
+    KC->>R: étape suivante
+    R->>API: POST /user-service/profile/provision<br/>X-Internal-Secret
     alt wely-users répond
-        API->>DB: recherche par keycloak_id
-        alt inconnu
-            API->>DB: création + hashtag unique
-            API->>API: publie USER_CREATED sur Kafka
-        end
+        API-->>R: businessId (idempotent sur l'UUID Keycloak)
+        R->>KC: attribut "businessId"
+    else échec
+        R->>KC: transaction annulée, page « réessayez »
+    end
+
+    U->>KC: connexion
+    KC->>M: émission du token
+    M->>API: GET /user-service/profile/resolve/{keycloakId}
+    alt connu
         API-->>M: businessId
-        M->>KC: met à jour l'attribut "businessId" s'il diffère
+    else inconnu (404)
+        M-->>KC: connexion refusée
     else wely-users injoignable
         KC-->>M: attribut "businessId" (repli)
     end
-
     M-->>KC: claim businessId
-    KC-->>U: access token
 ```
 
-### Deux propriétés notables
+### Trois propriétés notables
 
-**Le provisioning est paresseux (JIT).** L'utilisateur métier est créé au moment de la première émission de token, pas avant. Aucun batch de synchronisation, aucun webhook : tout utilisateur capable d'obtenir un token existe forcément côté application, quelle que soit la façon dont son compte Keycloak a été créé.
+**L'utilisateur est créé à l'inscription, et seulement là.** L'étape s'exécute dans la transaction qui crée le compte Keycloak. Si `wely-users` échoue, elle marque cette transaction *rollback-only* avant d'échouer : Keycloak transforme l'exception en page d'erreur et, sans cela, validerait quand même le compte. Il n'existe donc pas de compte Keycloak sans utilisateur Wely. Un compte créé autrement (console d'administration) doit être provisionné explicitement, comme le compte de démo.
 
-**`wely-users` fait foi, l'attribut Keycloak n'est qu'un repli.** Chaque émission de token interroge `wely-users` — une requête indexée sur `keycloak_id`. L'identifiant obtenu est recopié dans un attribut de l'utilisateur Keycloak, qui ne sert que si `wely-users` est injoignable : une panne ne bloque donc pas les connexions des comptes existants.
+**La connexion ne fait que lire.** Le mapper interroge `wely-users` — une requête indexée sur `keycloak_id` — et n'écrit rien. Créer l'utilisateur pendant l'émission du token, avec un délai de 3 s, laissait une première connexion lente échouer sur une page blanche (2026-10-10).
 
-La version précédente lisait l'attribut d'abord et n'appelait `wely-users` que s'il était vide. Le 2026-10-02, la table `app_user` de dev a été vidée par erreur : tous les comptes ont continué de recevoir des tokens portant un identifiant disparu, avec un 404 sur leur profil et rien pour le corriger. Désormais, un compte perdu est recréé — et l'attribut réparé — à l'émission de token suivante.
+**`wely-users` fait foi, l'attribut Keycloak n'est qu'un repli.** L'identifiant est recopié dans un attribut de l'utilisateur Keycloak, qui ne sert que si `wely-users` est injoignable. Un utilisateur que `wely-users` ne connaît pas est refusé, attribut ou pas : le 2026-10-02, la table `app_user` de dev a été vidée par erreur, et une version qui lisait l'attribut d'abord a continué d'émettre des tokens pour des identifiants disparus.
 
 ### Découverte de l'URL
 
@@ -80,11 +88,11 @@ La variable d'environnement est injectée par Kubernetes ; le repli couvre le d�
 │   └── business-id-mapper/          plugin Java (Maven)
 │       └── src/main/
 │           ├── java/com/calendar/
-│           │   ├── BusinessIdMapper.java      le mapper, branché sur Keycloak
-│           │   ├── BusinessIdResolver.java    wely-users d'abord, attribut en repli
-│           │   └── UsersServiceClient.java    appel HTTP à wely-users
-│           └── resources/META-INF/services/
-│               └── org.keycloak.protocol.ProtocolMapper    ← enregistrement SPI
+│           │   ├── BusinessUserRegistration.java  étape d'inscription : crée l'utilisateur
+│           │   ├── BusinessIdMapper.java          le mapper, branché sur Keycloak
+│           │   ├── BusinessIdResolver.java        wely-users d'abord, attribut en repli
+│           │   └── UsersServiceClient.java        appels HTTP à wely-users
+│           └── resources/META-INF/services/       ← enregistrement SPI des deux briques
 ├── themes/                          thème de connexion personnalisé
 ├── MAPPER_CONFIGURATION.md          configuration du mapper dans la console
 └── CI-CD-PLAN.md                    stratégie de livraison
@@ -143,11 +151,11 @@ kcadm.sh update clients/$(kcadm.sh get clients -r wely-realm \
 
 Keycloak **ignore un realm déjà existant** à l'import, donc le drapeau est sans danger ; il reste malgré tout hors des environnements dont le realm porte un état réel.
 
-> **L'export ne contient aucun identifiant.** Les quatre comptes qui portaient des hachages de mots de passe en ont été retirés : un Keycloak local démarre sans utilisateur, et on s'inscrit depuis l'application — ce qui est aussi le chemin qui exerce le *provisioning* JIT autour duquel ce projet est construit.
+> **L'export ne contient aucun identifiant.** Les quatre comptes qui portaient des hachages de mots de passe en ont été retirés : un Keycloak local démarre sans utilisateur, et on s'inscrit depuis l'application — ce qui est aussi le chemin qui exerce l'étape de création de `wely-users`.
 
 ---
 
 ## Limites connues
 
 - **Un secret réel figure encore dans l'historique Git de ce dépôt.** Il a été révoqué le 2026-10-01 : le secret du client a été régénéré via l'API Admin et rescellé. L'export courant ne porte qu'un placeholder.
-- **Appel HTTP bloquant** à chaque émission de token (`java.net.http`, timeout 3 s) — Keycloak n'est pas réactif, il n'y a rien à qui rendre un résultat asynchrone. Si `wely-users` est injoignable, l'attribut mis en cache prend le relais ; s'il n'y en a pas (toute première connexion), la connexion échoue plutôt que d'émettre un token sans `businessId`.
+- **Appels HTTP bloquants** (`java.net.http`) — Keycloak n'est pas réactif, il n'y a rien à qui rendre un résultat asynchrone. Lecture à chaque token : 3 s, avec l'attribut en repli. Création à l'inscription : 10 s, car on attend un formulaire et non un token. Si `wely-users` répond après le délai, il peut garder un utilisateur dont le compte Keycloak a été annulé : sans conséquence pour la connexion, mais une ligne orpheline.

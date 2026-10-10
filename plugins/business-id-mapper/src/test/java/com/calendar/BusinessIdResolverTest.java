@@ -45,4 +45,14 @@ class BusinessIdResolverTest {
         assertThrows(IllegalStateException.class, () -> resolver.resolve(KEYCLOAK_ID, null));
         assertThrows(IllegalStateException.class, () -> resolver.resolve(KEYCLOAK_ID, ""));
     }
+
+    @Test
+    void resolve_shouldFailEvenWithACache_whenTheUserIsUnknown() {
+        // A cached id for a user wely-users no longer has is exactly the 2026-10-02 failure.
+        BusinessIdResolver resolver = new BusinessIdResolver(keycloakId -> {
+            throw new UnknownUserException(keycloakId);
+        });
+
+        assertThrows(IllegalStateException.class, () -> resolver.resolve(KEYCLOAK_ID, STALE_ID));
+    }
 }
