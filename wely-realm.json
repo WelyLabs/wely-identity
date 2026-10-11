@@ -2466,6 +2466,14 @@
           "priority": 70,
           "autheticatorFlow": false,
           "userSetupAllowed": false
+        },
+        {
+          "authenticator": "wely-users-registration",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 80,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
         }
       ]
     },

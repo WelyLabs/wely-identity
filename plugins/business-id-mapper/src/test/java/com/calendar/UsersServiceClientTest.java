@@ -27,6 +27,8 @@ class UsersServiceClientTest {
     private String baseUrl;
     private final AtomicReference<String> requestedPath = new AtomicReference<>();
     private final AtomicReference<String> receivedSecret = new AtomicReference<>();
+    private final AtomicReference<String> receivedMethod = new AtomicReference<>();
+    private final AtomicReference<String> receivedBody = new AtomicReference<>();
     private volatile int status = 200;
     private volatile String body = BUSINESS_ID;
 
@@ -36,6 +38,8 @@ class UsersServiceClientTest {
         server.createContext("/", exchange -> {
             requestedPath.set(exchange.getRequestURI().getPath());
             receivedSecret.set(exchange.getRequestHeaders().getFirst(UsersServiceClient.SECRET_HEADER));
+            receivedMethod.set(exchange.getRequestMethod());
+            receivedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status, bytes.length);
             try (OutputStream out = exchange.getResponseBody()) {
@@ -93,6 +97,40 @@ class UsersServiceClientTest {
         server.stop(0);
 
         assertThrows(IOException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID));
+    }
+
+    @Test
+    void resolve_shouldFailAsUnknownUser_whenUsersAnswers404() {
+        status = 404;
+
+        assertThrows(UnknownUserException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID));
+    }
+
+    @Test
+    void provision_shouldPostTheIdentityAndReturnTheBusinessId() throws IOException {
+        String result = new UsersServiceClient(baseUrl, SECRET).provision(KEYCLOAK_ID, "lea", "Léa", "Martin");
+
+        assertEquals(BUSINESS_ID, result);
+        assertEquals("POST", receivedMethod.get());
+        assertEquals(UsersServiceClient.PROVISION_PATH, requestedPath.get());
+        assertEquals(SECRET, receivedSecret.get());
+        assertEquals("{\"keycloakId\":\"" + KEYCLOAK_ID + "\",\"username\":\"lea\",\"firstName\":\"Léa\",\"lastName\":\"Martin\"}",
+                receivedBody.get());
+    }
+
+    @Test
+    void provision_shouldFail_whenUsersAnswersAnError() {
+        status = 500;
+
+        assertThrows(IOException.class,
+                () -> new UsersServiceClient(baseUrl, SECRET).provision(KEYCLOAK_ID, "lea", "Léa", "Martin"));
+    }
+
+    @Test
+    void provision_shouldFailWithoutCalling_whenSecretIsMissing() {
+        assertThrows(IOException.class,
+                () -> new UsersServiceClient(baseUrl, null).provision(KEYCLOAK_ID, "lea", "Léa", "Martin"));
+        assertNull(requestedPath.get());
     }
 
     @Test

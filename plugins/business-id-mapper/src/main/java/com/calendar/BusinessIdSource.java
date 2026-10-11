@@ -8,8 +8,9 @@ import java.io.IOException;
 interface BusinessIdSource {
 
     /**
-     * Returns the business id of the given Keycloak user, provisioning the user if needed.
+     * Returns the business id of the given Keycloak user.
      *
+     * @throws UnknownUserException when the source has no such user
      * @throws IOException when the source cannot be reached or gives an unusable answer
      */
     String resolve(String keycloakId) throws IOException;
