@@ -2466,6 +2466,65 @@
           "priority": 70,
           "autheticatorFlow": false,
           "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "wely registration",
+      "description": "Registration flow of wely-realm: the built-in one plus the wely-users step",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "registration-page-form",
+          "authenticatorFlow": true,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": true,
+          "flowAlias": "wely registration registration form",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "wely registration registration form",
+      "description": "Registration form, then the wely-users user",
+      "providerId": "form-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "registration-user-creation",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-password-action",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 50,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-recaptcha-action",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 60,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-terms-and-conditions",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 70,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
         },
         {
           "authenticator": "wely-users-registration",
@@ -2697,7 +2756,7 @@
     }
   ],
   "browserFlow": "browser",
-  "registrationFlow": "registration",
+  "registrationFlow": "wely registration",
   "directGrantFlow": "direct grant",
   "resetCredentialsFlow": "reset credentials",
   "clientAuthenticationFlow": "clients",
