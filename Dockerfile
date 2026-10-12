@@ -10,7 +10,9 @@ COPY plugins/business-id-mapper /app/plugins/business-id-mapper
 RUN mvn -f /app/plugins/business-id-mapper/pom.xml clean package
 
 # Final Keycloak image
-FROM quay.io/keycloak/keycloak:latest
+# Pinned: `latest` changed Keycloak under every build, and a release started refusing a realm export
+# not named <realm>-realm.json. Bump it on purpose, and check the import in the local overlay.
+FROM quay.io/keycloak/keycloak:26.8.0
 
 # Copy custom themes
 COPY themes/calendar-app /opt/keycloak/themes/calendar-app
