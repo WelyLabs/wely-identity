@@ -478,6 +478,7 @@
       ],
       "clientRoles": {
         "realm-management": [
+          "manage-users",
           "query-users",
           "view-users"
         ]
