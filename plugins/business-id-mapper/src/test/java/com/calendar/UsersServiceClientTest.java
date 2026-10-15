@@ -1,6 +1,7 @@
 package com.calendar;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -9,6 +10,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
@@ -147,5 +149,29 @@ class UsersServiceClientTest {
     @Test
     void fromEnvironment_shouldBuildAClient() {
         assertNotNull(UsersServiceClient.fromEnvironment());
+    }
+
+    // --- account deletion -----------------------------------------------------
+
+    @Test
+    void resolve_shouldFailAsUnknownUser_whenUsersAnswers404WithAProblemBody() {
+        // What wely-users answers for the original Keycloak id of a deleted account.
+        status = 404;
+        body = "{\"status\":404,\"code\":\"USR-BUS-001\"}";
+        String keycloakId = UUID.randomUUID().toString();
+
+        assertThrows(UnknownUserException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(keycloakId));
+    }
+
+    @Test
+    void resolve_shouldTreatA410AsAnOutage_whenUsersAnswersGone() {
+        // Why resolve must never answer 410: as an outage, the resolver would mint a token from its cache.
+        status = 410;
+        body = "{\"status\":410,\"code\":\"USR-BUS-012\"}";
+        String keycloakId = UUID.randomUUID().toString();
+
+        IOException error = assertThrows(IOException.class,
+                () -> new UsersServiceClient(baseUrl, SECRET).resolve(keycloakId));
+        assertFalse(error instanceof UnknownUserException);
     }
 }

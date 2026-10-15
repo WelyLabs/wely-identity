@@ -79,6 +79,18 @@ La variable d'environnement est injectée par Kubernetes ; le repli couvre le d�
 
 ---
 
+## Account deletion
+
+An account is deleted by **wely-users**, never by Keycloak itself, so that the tombstone and `USER_DELETED` always come first:
+
+- `DELETE /user-service/profile` turns the row into a tombstone in one transaction. From that commit on, `resolve` answers **404** for the original Keycloak id, and `BusinessIdResolver` refuses the token even with a cached `businessId`: no login, refresh or token exchange can mint a token any more, whether Keycloak is up or not.
+- wely-users' `AccountDeletionWorker` then calls the Admin API with the `wely-users-api-client` service account, which already holds `manage-users`: `POST /admin/realms/wely-realm/users/{id}/logout` (ends every session, revokes earlier tokens), then `DELETE /admin/realms/wely-realm/users/{id}`. A 404 counts as done.
+- The only window in which the cache fallback can still mint a token is wely-users unreachable **and** the Keycloak user not deleted yet, normally a few seconds. Such a token gets 410 from wely-users and is refused writes by the other services. `resolve` must therefore never answer 410: `UsersServiceClientTest` pins that a 410 reads as an outage.
+- Re-authentication relies on the `auth_time` claim of the **access** token: the `auth_time` mapper of the `basic` client scope (access token claim on), a default scope of `wely-client`. The web app forces a fresh sign-in with `prompt=login`, and wely-users requires `auth_time` to be at most 5 minutes old.
+- The realm export stays consistent with that: the `delete_account` required action is disabled and the `delete-account` role is not a default role, so no user can delete themselves from Keycloak's account console and bypass the erasure.
+
+---
+
 ## Contenu du dépôt
 
 ```
@@ -159,3 +171,5 @@ Keycloak **ignore un realm déjà existant** à l'import, donc le drapeau est sa
 
 - **Un secret réel figure encore dans l'historique Git de ce dépôt.** Il a été révoqué le 2026-10-01 : le secret du client a été régénéré via l'API Admin et rescellé. L'export courant ne porte qu'un placeholder.
 - **Appels HTTP bloquants** (`java.net.http`) — Keycloak n'est pas réactif, il n'y a rien à qui rendre un résultat asynchrone. Lecture à chaque token : 3 s, avec l'attribut en repli. Création à l'inscription : 10 s, car on attend un formulaire et non un token. Si `wely-users` répond après le délai, il peut garder un utilisateur dont le compte Keycloak a été annulé : sans conséquence pour la connexion, mais une ligne orpheline.
+- **Deleting a user from the admin console bypasses erasure.** wely-users keeps the row and the other services keep their data: `OrphanUserReaper` only checks users whose account was never confirmed. Delete accounts through the application.
+- **Keycloak's own events outlive a deleted account.** In dev, LOGIN, REGISTER and LOGOUT events are kept 30 days (wely-gitops-infra `overlays/dev/realm/realm-settings.json`), and the Admin API can only clear them realm-wide.
