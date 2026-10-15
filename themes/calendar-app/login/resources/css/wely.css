@@ -186,17 +186,13 @@
   letter-spacing: -0.02em;
 }
 
-/* A calendar glyph drawn with two gradients: the ring binding and the page. */
+/* The WelyLabs monogram, as a white tile: on the gradient band, the gradient goes into the W. */
 .brand-name::before {
   content: '';
   flex-shrink: 0;
   width: 2.25rem;
   height: 2.25rem;
-  border-radius: 10px;
-  background:
-    linear-gradient(var(--wely-on-brand), var(--wely-on-brand)) top / 100% 30% no-repeat,
-    rgb(255 255 255 / 0.22);
-  box-shadow: inset 0 0 0 2px var(--wely-on-brand);
+  background: url('../img/logo-mark.svg') center / contain no-repeat;
 }
 
 .brand-pitch {
