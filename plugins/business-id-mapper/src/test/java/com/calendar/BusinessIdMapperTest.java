@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.keycloak.models.ProtocolMapperModel;
@@ -143,5 +144,22 @@ class BusinessIdMapperTest {
                     }
                     throw new UnsupportedOperationException(method.getName());
                 });
+    }
+
+    @Test
+    void setClaim_shouldMintNoTokenAndLeaveTheAttribute_whenTheAccountWasDeleted() {
+        String cachedId = UUID.randomUUID().toString();
+        attributes.put(BusinessIdMapper.BUSINESS_ID_ATTRIBUTE, cachedId);
+        IDToken token = new IDToken();
+        ProtocolMapperModel model = new ProtocolMapperModel();
+        model.setConfig(new HashMap<>());
+
+        assertThrows(IllegalStateException.class, () -> mapper(keycloakId -> {
+            throw new UnknownUserException(keycloakId);
+        }).setClaim(token, model, fakeSession(), null, null));
+
+        assertFalse(token.getOtherClaims().containsKey(BusinessIdMapper.DEFAULT_CLAIM_NAME));
+        assertEquals(cachedId, attributes.get(BusinessIdMapper.BUSINESS_ID_ATTRIBUTE));
+        assertEquals(0, attributeWrites);
     }
 }

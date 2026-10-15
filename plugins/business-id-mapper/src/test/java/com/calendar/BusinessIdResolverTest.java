@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
@@ -54,5 +55,27 @@ class BusinessIdResolverTest {
         });
 
         assertThrows(IllegalStateException.class, () -> resolver.resolve(KEYCLOAK_ID, STALE_ID));
+    }
+
+    // --- account deletion: wely-users answers 404 once the account is a tombstone ---
+
+    @Test
+    void resolve_shouldRefuseTheToken_evenWithACachedId_whenTheAccountWasDeleted() {
+        String keycloakId = UUID.randomUUID().toString();
+        String cachedId = UUID.randomUUID().toString();
+        BusinessIdResolver resolver = new BusinessIdResolver(id -> {
+            throw new UnknownUserException(id);
+        });
+
+        assertThrows(IllegalStateException.class, () -> resolver.resolve(keycloakId, cachedId));
+    }
+
+    @Test
+    void resolve_shouldFallBackOnTheCache_whenUsersIsUnreachableDuringTheDeletionWindow() {
+        // The residual window: wely-users down before the worker deleted the Keycloak user.
+        String cachedId = UUID.randomUUID().toString();
+        BusinessIdResolver resolver = new BusinessIdResolver(UNREACHABLE);
+
+        assertEquals(cachedId, resolver.resolve(UUID.randomUUID().toString(), cachedId));
     }
 }
