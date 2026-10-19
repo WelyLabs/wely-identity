@@ -1,0 +1,21 @@
+/*
+ * The admin login screen: calendar-app's, told apart at a glance. Only what differs is here;
+ * every token comes from wely.css, loaded just before.
+ */
+
+/* "Admin" next to the brand name, as a frosted tag on the gradient panel. */
+.brand-name::after {
+  content: 'Admin';
+  padding: 0.2rem 0.625rem;
+  border: 1px solid rgb(255 255 255 / 0.45);
+  border-radius: 999px;
+  background-color: rgb(255 255 255 / 0.16);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* The application's subtitle invites users back to their calendar: not what this screen is for. */
+body[data-page-id='login-login'] #kc-page-title::after {
+  content: 'Console Keycloak de WelyLabs';
+}

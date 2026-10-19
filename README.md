@@ -105,7 +105,7 @@ An account is deleted by **wely-users**, never by Keycloak itself, so that the t
 │           │   ├── BusinessIdResolver.java        wely-users d'abord, attribut en repli
 │           │   └── UsersServiceClient.java        appels HTTP à wely-users
 │           └── resources/META-INF/services/       ← enregistrement SPI des deux briques
-├── themes/                          thème de connexion personnalisé
+├── themes/                          login themes: calendar-app (the app), wely-admin (the admin console, extends it)
 ├── MAPPER_CONFIGURATION.md          configuration du mapper dans la console
 └── CI-CD-PLAN.md                    stratégie de livraison
 ```

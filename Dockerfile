@@ -16,6 +16,8 @@ FROM quay.io/keycloak/keycloak:26.8.0
 
 # Copy custom themes
 COPY themes/calendar-app /opt/keycloak/themes/calendar-app
+# The master realm's login screen, in front of the admin console: extends calendar-app.
+COPY themes/wely-admin /opt/keycloak/themes/wely-admin
 
 # Copy custom plugins
 COPY --from=build /app/plugins/business-id-mapper/target/*.jar /opt/keycloak/providers/business-id-mapper.jar
