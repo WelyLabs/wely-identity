@@ -791,6 +791,47 @@
       ]
     },
     {
+      "clientId": "wely-mcp-client",
+      "name": "Wely MCP (LLM agents)",
+      "description": "Public client an MCP client signs in through to reach wely-mcp. Declared here because the realm refuses anonymous dynamic client registration.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "fullScopeAllowed": false,
+      "redirectUris": [
+        "https://claude.ai/api/mcp/auth_callback",
+        "https://claude.com/api/mcp/auth_callback"
+      ],
+      "webOrigins": [
+        "https://claude.ai",
+        "https://claude.com"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "standard.token.exchange.enabled": "false",
+        "client.use.lightweight.access.token.enabled": "false"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "business-scope",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "offline_access"
+      ]
+    },
+    {
       "id": "717a9e61-3f16-4378-b057-814ff141a9f3",
       "clientId": "wely-users-api-client",
       "name": "",

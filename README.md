@@ -142,6 +142,12 @@ Le realm `wely-realm` définit :
 - le client public **`wely-client`** utilisé par le frontend (flow OIDC) ;
 - le client confidentiel **`wely-users-api-client`** (`client_credentials`) permettant à `wely-users` d'appeler l'Admin API ;
 - le mapper **`businessId`** attaché au client frontend, qui injecte le claim.
+- the public client **`wely-mcp-client`**, which an MCP client (Claude) signs in through to reach
+  `wely-mcp`. PKCE S256 and `business-scope` are required: without that scope the token is valid
+  and every call behind the gateway fails for want of a `businessId`. It exists because the realm
+  refuses anonymous dynamic client registration (Trusted Hosts policy), so a client cannot
+  register itself; the dev realm gets it from `wely-gitops-infra`'s realm-settings hook, since
+  Keycloak skips an existing realm on import.
 
 Voir [`MAPPER_CONFIGURATION.md`](MAPPER_CONFIGURATION.md) pour la procédure de configuration dans la console.
 
