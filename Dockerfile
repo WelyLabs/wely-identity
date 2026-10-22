@@ -27,12 +27,10 @@ COPY --from=build /app/plugins/business-id-mapper/target/*.jar /opt/keycloak/pro
 # does and dev and prod do not: Keycloak skips a realm that already exists, but the flag is
 # kept out of the environments whose realm holds real state all the same.
 #
-# The export carries no credentials. The four accounts that had password hashes were removed
-# — a local Keycloak starts with no users, and you register through the application, which is
-# also the path that exercises the JIT provisioning this project is built around. The client
-# secret is a ${KC_CLIENT_SECRET} placeholder, which Keycloak resolves from the environment at
-# import time.
-COPY wely-realm.json /opt/keycloak/data/import/wely-realm.json
+# No realm export is baked in. The only one lives in wely-gitops-infra, under
+# overlays/local/keycloak/, and the local overlay mounts it over /opt/keycloak/data/import --
+# which hid whatever this image carried. dev and prod never import at all: their realm holds
+# state, and the realm-settings hook keeps it in shape.
 
 # Keycloak configuration is handled by environment variables in Kubernetes
 # but we can set some defaults here if needed.

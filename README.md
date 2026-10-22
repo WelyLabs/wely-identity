@@ -94,7 +94,6 @@ An account is deleted by **wely-users**, never by Keycloak itself, so that the t
 ## Contenu du dépôt
 
 ```
-├── wely-realm.json          export du realm (clients, rôles, flows, mappers)
 ├── Dockerfile                       image Keycloak + plugin + thème
 ├── plugins/
 │   └── business-id-mapper/          plugin Java (Maven)
@@ -165,11 +164,18 @@ kcadm.sh update clients/$(kcadm.sh get clients -r wely-realm \
 
 ### Import du realm
 
-`wely-realm.json` est copié dans l'image, sous `/opt/keycloak/data/import/`. Il n'est lu que si le conteneur démarre avec `--import-realm`, ce que fait l'overlay `local` et que ne font ni `dev` ni `prod`.
+**Ce dépôt ne porte plus d'export du realm.** Le seul qui existe est
+`overlays/local/keycloak/wely-realm.json` dans `wely-gitops-infra`, et c'est l'overlay `local` qui
+l'importe : il le monte par-dessus `/opt/keycloak/data/import`, ce qui masquait de toute façon tout
+fichier que cette image aurait embarqué. `dev` et `prod` n'importent jamais — leur realm porte un
+état réel, et c'est le hook `realm-settings` qui l'entretient.
 
-Keycloak **ignore un realm déjà existant** à l'import, donc le drapeau est sans danger ; il reste malgré tout hors des environnements dont le realm porte un état réel.
+Ce dépôt garde ce qui lui appartient vraiment : le thème de connexion et le plugin
+`business-id-mapper`. Une modification du realm se fait donc à un seul endroit, selon la cible :
+l'export pour un realm créé de zéro, le hook pour le realm de `dev` qui existe déjà.
 
-> **L'export ne contient aucun identifiant.** Les quatre comptes qui portaient des hachages de mots de passe en ont été retirés : un Keycloak local démarre sans utilisateur, et on s'inscrit depuis l'application — ce qui est aussi le chemin qui exerce l'étape de création de `wely-users`.
+Keycloak **ignore un realm déjà existant** à l'import, donc le drapeau `--import-realm` est sans
+danger ; il reste malgré tout hors des environnements dont le realm porte un état réel.
 
 ---
 

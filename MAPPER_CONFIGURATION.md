@@ -24,7 +24,9 @@ Le plugin `BusinessIdMapper` est bien chargé par Keycloak, mais il n'est **pas 
 
 ### Option 2 : Via Export/Import (Pour automatiser)
 
-Ajoute cette configuration dans ton fichier `wely-realm.json` :
+Ajoute cette configuration dans l'export du realm — `overlays/local/keycloak/wely-realm.json`
+dans `wely-gitops-infra`, le seul qui soit importé. Pour le realm de `dev`, qui existe déjà et
+qu'aucun import ne touche, la même chose se fait par le hook `realm-settings` :
 
 ```json
 {
