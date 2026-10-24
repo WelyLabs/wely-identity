@@ -56,6 +56,16 @@ jobs:
           IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
           cd infra
+          # One Keycloak in wely-platform serves every environment, one realm each, so its image is
+          # pinned in platform/shared and not under overlays/<env>. The environment input is kept
+          # for the workflow_call contract and for the log line below, but it no longer selects a
+          # file: a deploy from any environment rolls the Keycloak that all of them authenticate
+          # against. That shared blast radius is the trade the single instance was chosen for.
+          #
+          # This used to write overlays/$ENVIRONMENT/kustomization.yaml, where the entry still
+          # existed but no longer matched any resource. The push succeeded, the job was green, and
+          # the deployed Keycloak silently stayed on its previous image — which cost one outage.
+          MANIFEST="platform/shared/kustomization.yaml"
           git config user.name "github-actions"
           git config user.email "actions@github.com"
 
@@ -65,14 +75,14 @@ jobs:
             export IMAGE="ghcr.io/welylabs/wely-keycloak"
             perl -0pi -e \
               's/(- name: \Q$ENV{IMAGE}\E\n(?:  .*\n)*?  newTag: ).*/${1}$ENV{IMAGE_TAG}/' \
-              "overlays/$ENVIRONMENT/kustomization.yaml"
+              "$MANIFEST"
 
             # Unlike `kustomize edit`, this cannot add a missing entry; say so instead of reporting
             # "already at" the tag. The check reads this image's own entry: any other image already
             # on the same tag (every prod entry is `latest`) would pass a file-wide grep.
             if ! perl -0ne '$found ||= /^- name: \Q$ENV{IMAGE}\E\n(?:  .*\n)*?  newTag: \Q$ENV{IMAGE_TAG}\E$/m; END { exit !$found }' \
-                "overlays/$ENVIRONMENT/kustomization.yaml"; then
-              echo "::error::No $IMAGE entry under images: in overlays/$ENVIRONMENT."
+                "$MANIFEST"; then
+              echo "::error::No $IMAGE entry under images: in $MANIFEST."
               exit 1
             fi
 
@@ -81,8 +91,8 @@ jobs:
               exit 0
             fi
 
-            git add "overlays/$ENVIRONMENT/kustomization.yaml"
-            git commit -m "deploy($ENVIRONMENT): update wely-keycloak to $IMAGE_TAG"
+            git add "$MANIFEST"
+            git commit -m "deploy(platform): update wely-keycloak to $IMAGE_TAG (from $ENVIRONMENT)"
 
             if git push; then
               echo "Pushed on attempt $attempt."
