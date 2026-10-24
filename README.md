@@ -84,9 +84,9 @@ La variable d'environnement est injectée par Kubernetes ; le repli couvre le d�
 An account is deleted by **wely-users**, never by Keycloak itself, so that the tombstone and `USER_DELETED` always come first:
 
 - `DELETE /user-service/profile` turns the row into a tombstone in one transaction. From that commit on, `resolve` answers **404** for the original Keycloak id, and `BusinessIdResolver` refuses the token even with a cached `businessId`: no login, refresh or token exchange can mint a token any more, whether Keycloak is up or not.
-- wely-users' `AccountDeletionWorker` then calls the Admin API with the `wely-users-api-client` service account, which already holds `manage-users`: `POST /admin/realms/wely-realm/users/{id}/logout` (ends every session, revokes earlier tokens), then `DELETE /admin/realms/wely-realm/users/{id}`. A 404 counts as done.
+- wely-users' `AccountDeletionWorker` then calls the Admin API with the `wely-users-<env>-client` service account, which already holds `manage-users`: `POST /admin/realms/wely-<env>/users/{id}/logout` (ends every session, revokes earlier tokens), then `DELETE /admin/realms/wely-<env>/users/{id}`. A 404 counts as done.
 - The only window in which the cache fallback can still mint a token is wely-users unreachable **and** the Keycloak user not deleted yet, normally a few seconds. Such a token gets 410 from wely-users and is refused writes by the other services. `resolve` must therefore never answer 410: `UsersServiceClientTest` pins that a 410 reads as an outage.
-- Re-authentication relies on the `auth_time` claim of the **access** token: the `auth_time` mapper of the `basic` client scope (access token claim on), a default scope of `wely-client`. The web app forces a fresh sign-in with `prompt=login`, and wely-users requires `auth_time` to be at most 5 minutes old.
+- Re-authentication relies on the `auth_time` claim of the **access** token: the `auth_time` mapper of the `basic` client scope (access token claim on), a default scope of `wely-web-<env>-client`. The web app forces a fresh sign-in with `prompt=login`, and wely-users requires `auth_time` to be at most 5 minutes old.
 - The realm export stays consistent with that: the `delete_account` required action is disabled and the `delete-account` role is not a default role, so no user can delete themselves from Keycloak's account console and bypass the erasure.
 
 ---
@@ -136,30 +136,44 @@ Keycloak démarre sur `:8080` en `start-dev`, avec import automatique du realm e
 
 ## Configuration du realm
 
-Le realm `wely-realm` définit :
+**Un seul Keycloak sert tous les environnements, avec un realm chacun** (depuis le 2026-10-24) :
+`wely-dev`, `wely-prod`, `wely-local`. Les clients suivent la convention
+`wely-<service>-<env>-client`, et les exemples ci-dessous prennent `local` comme environnement.
 
-- le client public **`wely-client`** utilisé par le frontend (flow OIDC) ;
-- le client confidentiel **`wely-users-api-client`** (`client_credentials`) permettant à `wely-users` d'appeler l'Admin API ;
-- le mapper **`businessId`** attaché au client frontend, qui injecte le claim.
-- the public client **`wely-mcp-client`**, which an MCP client (Claude) signs in through to reach
+| | dev | local |
+|---|---|---|
+| Realm | `wely-dev` | `wely-local` |
+| Client web | `wely-web-dev-client` | `wely-web-local-client` |
+| Client MCP | `wely-mcp-dev-client` | `wely-mcp-local-client` |
+| Client admin | `wely-users-dev-client` | `wely-users-local-client` |
+| Audience estampillée | `wely-api-dev` | `wely-api-local` |
+
+Chaque realm définit :
+
+- le client public **`wely-web-<env>-client`** utilisé par le frontend (flow OIDC) ;
+- le client confidentiel **`wely-users-<env>-client`** (`client_credentials`) permettant à `wely-users` d'appeler l'Admin API ;
+- le mapper **`businessId`** attaché au scope `business-scope`, qui injecte le claim ;
+- le mapper **`audience-mapper`** du même scope, qui estampille `wely-api-<env>` — il nomme **la ressource visée**, pas le client appelant. L'inverse reviendrait à accepter tous les jetons.
+- the public client **`wely-mcp-<env>-client`**, which an MCP client (Claude) signs in through to reach
   `wely-mcp`. PKCE S256 and `business-scope` are required: without that scope the token is valid
   and every call behind the gateway fails for want of a `businessId`. It exists because the realm
   refuses anonymous dynamic client registration (Trusted Hosts policy), so a client cannot
-  register itself; the dev realm gets it from `wely-gitops-infra`'s realm-settings hook, since
-  Keycloak skips an existing realm on import.
+  register itself; the dev realm got it from `wely-gitops-infra`'s realm-settings hook, since
+  Keycloak skips an existing realm on import — **that hook is disabled since 2026-10-24** (it
+  blocked every ArgoCD sync), so a change to the dev realm is a manual operation today.
 
 Voir [`MAPPER_CONFIGURATION.md`](MAPPER_CONFIGURATION.md) pour la procédure de configuration dans la console.
 
 ### Secret du client confidentiel
 
-L'export porte `"secret": "${KC_CLIENT_SECRET}"` pour `wely-users-api-client`. Keycloak résout les placeholders `${VARIABLE}` depuis l'environnement **au moment de l'import**, donc aucun secret réel n'est versionné et aucune étape manuelle n'est nécessaire : il suffit que `KC_CLIENT_SECRET` soit présent dans l'environnement du conteneur Keycloak, et qu'il corresponde à `KEYCLOAK_CLIENT_SECRET` côté `wely-users`.
+L'export porte `"secret": "${KC_CLIENT_SECRET}"` pour `wely-users-local-client`. Keycloak résout les placeholders `${VARIABLE}` depuis l'environnement **au moment de l'import**, donc aucun secret réel n'est versionné et aucune étape manuelle n'est nécessaire : il suffit que `KC_CLIENT_SECRET` soit présent dans l'environnement du conteneur Keycloak, et qu'il corresponde à `KEYCLOAK_CLIENT_SECRET` côté `wely-users`.
 
 Sur un realm déjà existant, la valeur se change dans la console, ou :
 
 ```bash
-kcadm.sh update clients/$(kcadm.sh get clients -r wely-realm \
-    -q clientId=wely-users-api-client --fields id --format csv --noquotes) \
-  -r wely-realm -s secret="$KEYCLOAK_CLIENT_SECRET"
+kcadm.sh update clients/$(kcadm.sh get clients -r wely-dev \
+    -q clientId=wely-users-dev-client --fields id --format csv --noquotes) \
+  -r wely-dev -s secret="$KEYCLOAK_CLIENT_SECRET"
 ```
 
 ### Import du realm
@@ -168,7 +182,9 @@ kcadm.sh update clients/$(kcadm.sh get clients -r wely-realm \
 `overlays/local/keycloak/wely-realm.json` dans `wely-gitops-infra`, et c'est l'overlay `local` qui
 l'importe : il le monte par-dessus `/opt/keycloak/data/import`, ce qui masquait de toute façon tout
 fichier que cette image aurait embarqué. `dev` et `prod` n'importent jamais — leur realm porte un
-état réel, et c'est le hook `realm-settings` qui l'entretient.
+état réel. Le hook `realm-settings` l'entretenait ; **il est désactivé depuis le 2026-10-24**, donc
+l'export est aujourd'hui la seule source décrivant un realm, et elle décrit `wely-local`.
+Reconstruire celui de `prod` de zéro n'a pas encore de source.
 
 Ce dépôt garde ce qui lui appartient vraiment : le thème de connexion et le plugin
 `business-id-mapper`. Une modification du realm se fait donc à un seul endroit, selon la cible :
