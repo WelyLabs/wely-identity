@@ -14,6 +14,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.oidc.mappers.OIDCAttributeMapperHelper;
 import org.keycloak.representations.IDToken;
@@ -21,6 +22,7 @@ import org.keycloak.representations.IDToken;
 class BusinessIdMapperTest {
 
     private static final String KEYCLOAK_ID = "93b5339f-a3a3-45b8-b343-25ca1b6f9d7b";
+    private static final String REALM = "wely-dev";
     private static final String FRESH_ID = "a5f79638-abfc-4ffc-bffc-c9f1d8878e56";
     private static final String STALE_ID = "0e1c5d1a-0000-4000-8000-000000000000";
 
@@ -30,7 +32,7 @@ class BusinessIdMapperTest {
 
     @Test
     void setClaim_shouldAddResolvedIdAndCacheIt_whenNothingIsCached() {
-        IDToken token = map(keycloakId -> FRESH_ID, null);
+        IDToken token = map((keycloakId, realm) -> FRESH_ID, null);
 
         assertEquals(FRESH_ID, token.getOtherClaims().get(BusinessIdMapper.DEFAULT_CLAIM_NAME));
         assertEquals(FRESH_ID, attributes.get(BusinessIdMapper.BUSINESS_ID_ATTRIBUTE));
@@ -40,7 +42,7 @@ class BusinessIdMapperTest {
     void setClaim_shouldReplaceStaleCache_whenUsersReturnsAnotherId() {
         attributes.put(BusinessIdMapper.BUSINESS_ID_ATTRIBUTE, STALE_ID);
 
-        IDToken token = map(keycloakId -> FRESH_ID, null);
+        IDToken token = map((keycloakId, realm) -> FRESH_ID, null);
 
         assertEquals(FRESH_ID, token.getOtherClaims().get(BusinessIdMapper.DEFAULT_CLAIM_NAME));
         assertEquals(FRESH_ID, attributes.get(BusinessIdMapper.BUSINESS_ID_ATTRIBUTE));
@@ -50,7 +52,7 @@ class BusinessIdMapperTest {
     void setClaim_shouldNotRewriteAttribute_whenCacheIsCurrent() {
         attributes.put(BusinessIdMapper.BUSINESS_ID_ATTRIBUTE, FRESH_ID);
 
-        map(keycloakId -> FRESH_ID, null);
+        map((keycloakId, realm) -> FRESH_ID, null);
 
         assertEquals(0, attributeWrites);
     }
@@ -59,7 +61,7 @@ class BusinessIdMapperTest {
     void setClaim_shouldUseCachedId_whenUsersIsUnreachable() {
         attributes.put(BusinessIdMapper.BUSINESS_ID_ATTRIBUTE, STALE_ID);
 
-        IDToken token = map(keycloakId -> { throw new IOException("down"); }, null);
+        IDToken token = map((keycloakId, realm) -> { throw new IOException("down"); }, null);
 
         assertEquals(STALE_ID, token.getOtherClaims().get(BusinessIdMapper.DEFAULT_CLAIM_NAME));
         assertEquals(0, attributeWrites);
@@ -67,13 +69,13 @@ class BusinessIdMapperTest {
 
     @Test
     void setClaim_shouldFail_whenUsersIsUnreachableAndNothingIsCached() {
-        assertThrows(IllegalStateException.class, () -> map(keycloakId -> { throw new IOException("down"); }, null));
+        assertThrows(IllegalStateException.class, () -> map((keycloakId, realm) -> { throw new IOException("down"); }, null));
         assertFalse(attributes.containsKey(BusinessIdMapper.BUSINESS_ID_ATTRIBUTE));
     }
 
     @Test
     void setClaim_shouldUseConfiguredClaimName() {
-        IDToken token = map(keycloakId -> FRESH_ID, "appUserId");
+        IDToken token = map((keycloakId, realm) -> FRESH_ID, "appUserId");
 
         assertEquals(FRESH_ID, token.getOtherClaims().get("appUserId"));
         assertFalse(token.getOtherClaims().containsKey(BusinessIdMapper.DEFAULT_CLAIM_NAME));
@@ -83,25 +85,25 @@ class BusinessIdMapperTest {
     void setClaim_shouldResolveWithTheKeycloakUserId() {
         String[] asked = new String[1];
 
-        map(keycloakId -> { asked[0] = keycloakId; return FRESH_ID; }, null);
+        map((keycloakId, realm) -> { asked[0] = keycloakId; return FRESH_ID; }, null);
 
         assertEquals(KEYCLOAK_ID, asked[0]);
     }
 
     @Test
     void getId_shouldReturnProviderId() {
-        assertEquals(BusinessIdMapper.PROVIDER_ID, mapper(keycloakId -> FRESH_ID).getId());
+        assertEquals(BusinessIdMapper.PROVIDER_ID, mapper((keycloakId, realm) -> FRESH_ID).getId());
     }
 
     @Test
     void getConfigProperties_shouldExposeClaimNameSetting() {
-        assertTrue(mapper(keycloakId -> FRESH_ID).getConfigProperties().stream()
+        assertTrue(mapper((keycloakId, realm) -> FRESH_ID).getConfigProperties().stream()
                 .anyMatch(p -> OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME.equals(p.getName())));
     }
 
     @Test
     void displayTexts_shouldBeSet() {
-        BusinessIdMapper mapper = mapper(keycloakId -> FRESH_ID);
+        BusinessIdMapper mapper = mapper((keycloakId, realm) -> FRESH_ID);
 
         assertFalse(mapper.getDisplayType().isBlank());
         assertFalse(mapper.getDisplayCategory().isBlank());
@@ -137,12 +139,17 @@ class BusinessIdMapperTest {
                     }
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
+        // One Keycloak serves several realms, so the mapper asks the session which one it is in.
+        RealmModel realm = (RealmModel) Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[] { RealmModel.class }, (proxy, method, args) -> switch (method.getName()) {
+                    case "getName" -> REALM;
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
         return (UserSessionModel) Proxy.newProxyInstance(getClass().getClassLoader(),
-                new Class<?>[] { UserSessionModel.class }, (proxy, method, args) -> {
-                    if (method.getName().equals("getUser")) {
-                        return user;
-                    }
-                    throw new UnsupportedOperationException(method.getName());
+                new Class<?>[] { UserSessionModel.class }, (proxy, method, args) -> switch (method.getName()) {
+                    case "getUser" -> user;
+                    case "getRealm" -> realm;
+                    default -> throw new UnsupportedOperationException(method.getName());
                 });
     }
 
@@ -154,7 +161,7 @@ class BusinessIdMapperTest {
         ProtocolMapperModel model = new ProtocolMapperModel();
         model.setConfig(new HashMap<>());
 
-        assertThrows(IllegalStateException.class, () -> mapper(keycloakId -> {
+        assertThrows(IllegalStateException.class, () -> mapper((keycloakId, realm) -> {
             throw new UnknownUserException(keycloakId);
         }).setClaim(token, model, fakeSession(), null, null));
 

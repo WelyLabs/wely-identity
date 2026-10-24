@@ -24,6 +24,7 @@ class UsersServiceClientTest {
     private static final String KEYCLOAK_ID = "93b5339f-a3a3-45b8-b343-25ca1b6f9d7b";
     private static final String BUSINESS_ID = "a5f79638-abfc-4ffc-bffc-c9f1d8878e56";
     private static final String SECRET = "test-secret";
+    private static final String REALM = "wely-dev";
 
     private HttpServer server;
     private String baseUrl;
@@ -59,7 +60,7 @@ class UsersServiceClientTest {
 
     @Test
     void resolve_shouldReturnBusinessIdAndSendSecret_whenUsersAnswers200() throws IOException {
-        String result = new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID);
+        String result = new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID, REALM);
 
         assertEquals(BUSINESS_ID, result);
         assertEquals(UsersServiceClient.RESOLVE_PATH + KEYCLOAK_ID, requestedPath.get());
@@ -70,27 +71,27 @@ class UsersServiceClientTest {
     void resolve_shouldStripQuotes_whenBodyIsAJsonString() throws IOException {
         body = "\"" + BUSINESS_ID + "\"\n";
 
-        assertEquals(BUSINESS_ID, new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID));
+        assertEquals(BUSINESS_ID, new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID, REALM));
     }
 
     @Test
     void resolve_shouldFail_whenUsersAnswersAnError() {
         status = 502;
 
-        assertThrows(IOException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID));
+        assertThrows(IOException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID, REALM));
     }
 
     @Test
     void resolve_shouldFail_whenBodyIsNotAUuid() {
         body = "<html>proxy error</html>";
 
-        assertThrows(IOException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID));
+        assertThrows(IOException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID, REALM));
     }
 
     @Test
     void resolve_shouldFailWithoutCalling_whenSecretIsMissing() {
-        assertThrows(IOException.class, () -> new UsersServiceClient(baseUrl, " ").resolve(KEYCLOAK_ID));
-        assertThrows(IOException.class, () -> new UsersServiceClient(baseUrl, null).resolve(KEYCLOAK_ID));
+        assertThrows(IOException.class, () -> new UsersServiceClient(baseUrl, " ").resolve(KEYCLOAK_ID, REALM));
+        assertThrows(IOException.class, () -> new UsersServiceClient(baseUrl, null).resolve(KEYCLOAK_ID, REALM));
         assertNull(requestedPath.get());
     }
 
@@ -98,19 +99,19 @@ class UsersServiceClientTest {
     void resolve_shouldFail_whenUsersIsUnreachable() {
         server.stop(0);
 
-        assertThrows(IOException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID));
+        assertThrows(IOException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID, REALM));
     }
 
     @Test
     void resolve_shouldFailAsUnknownUser_whenUsersAnswers404() {
         status = 404;
 
-        assertThrows(UnknownUserException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID));
+        assertThrows(UnknownUserException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(KEYCLOAK_ID, REALM));
     }
 
     @Test
     void provision_shouldPostTheIdentityAndReturnTheBusinessId() throws IOException {
-        String result = new UsersServiceClient(baseUrl, SECRET).provision(KEYCLOAK_ID, "lea", "Léa", "Martin");
+        String result = new UsersServiceClient(baseUrl, SECRET).provision(KEYCLOAK_ID, "lea", "Léa", "Martin", REALM);
 
         assertEquals(BUSINESS_ID, result);
         assertEquals("POST", receivedMethod.get());
@@ -125,13 +126,13 @@ class UsersServiceClientTest {
         status = 500;
 
         assertThrows(IOException.class,
-                () -> new UsersServiceClient(baseUrl, SECRET).provision(KEYCLOAK_ID, "lea", "Léa", "Martin"));
+                () -> new UsersServiceClient(baseUrl, SECRET).provision(KEYCLOAK_ID, "lea", "Léa", "Martin", REALM));
     }
 
     @Test
     void provision_shouldFailWithoutCalling_whenSecretIsMissing() {
         assertThrows(IOException.class,
-                () -> new UsersServiceClient(baseUrl, null).provision(KEYCLOAK_ID, "lea", "Léa", "Martin"));
+                () -> new UsersServiceClient(baseUrl, null).provision(KEYCLOAK_ID, "lea", "Léa", "Martin", REALM));
         assertNull(requestedPath.get());
     }
 
@@ -160,7 +161,7 @@ class UsersServiceClientTest {
         body = "{\"status\":404,\"code\":\"USR-BUS-001\"}";
         String keycloakId = UUID.randomUUID().toString();
 
-        assertThrows(UnknownUserException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(keycloakId));
+        assertThrows(UnknownUserException.class, () -> new UsersServiceClient(baseUrl, SECRET).resolve(keycloakId, REALM));
     }
 
     @Test
@@ -171,7 +172,39 @@ class UsersServiceClientTest {
         String keycloakId = UUID.randomUUID().toString();
 
         IOException error = assertThrows(IOException.class,
-                () -> new UsersServiceClient(baseUrl, SECRET).resolve(keycloakId));
+                () -> new UsersServiceClient(baseUrl, SECRET).resolve(keycloakId, REALM));
         assertFalse(error instanceof UnknownUserException);
+    }
+
+    // --- one Keycloak, one realm per environment: the URL follows the realm ---
+
+    @Test
+    void baseUrlFor_shouldSubstituteTheEnvironmentOfTheRealm() throws IOException {
+        UsersServiceClient client = new UsersServiceClient(
+                "http://wely-users-service.wely-{env}.svc.cluster.local:8082", SECRET);
+
+        assertEquals("http://wely-users-service.wely-dev.svc.cluster.local:8082",
+                client.baseUrlFor("wely-dev"));
+        assertEquals("http://wely-users-service.wely-prod.svc.cluster.local:8082",
+                client.baseUrlFor("wely-prod"));
+    }
+
+    @Test
+    void baseUrlFor_shouldLeaveAUrlWithoutPlaceholderAlone() throws IOException {
+        UsersServiceClient client = new UsersServiceClient("http://users:8082", SECRET);
+
+        assertEquals("http://users:8082", client.baseUrlFor("wely-dev"));
+        assertEquals("http://users:8082", client.baseUrlFor("anything"));
+    }
+
+    @Test
+    void baseUrlFor_shouldRefuseARealmThatNamesNoEnvironment() {
+        // Guessing here is the silent bug the placeholder exists to prevent: a token minted for one
+        // realm would carry the business id of another environment's user.
+        UsersServiceClient client = new UsersServiceClient("http://users.wely-{env}:8082", SECRET);
+
+        assertThrows(IOException.class, () -> client.baseUrlFor("master"));
+        assertThrows(IOException.class, () -> client.baseUrlFor("wely-"));
+        assertThrows(IOException.class, () -> client.baseUrlFor(null));
     }
 }

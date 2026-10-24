@@ -30,12 +30,13 @@ final class BusinessIdResolver {
     /**
      * @param keycloakId the Keycloak user id
      * @param cachedId   the business id previously stored on the Keycloak user, or {@code null}
+     * @param realm      the realm being authenticated, which names the wely-users to ask
      * @return the business id to put in the token
      * @throws IllegalStateException when wely-users has no such user, or is unreachable and nothing is cached
      */
-    String resolve(String keycloakId, String cachedId) {
+    String resolve(String keycloakId, String cachedId, String realm) {
         try {
-            return source.resolve(keycloakId);
+            return source.resolve(keycloakId, realm);
         } catch (UnknownUserException e) {
             // Users are created at registration: no user means no account, cache or not.
             throw new IllegalStateException("No wely-users user for " + keycloakId, e);

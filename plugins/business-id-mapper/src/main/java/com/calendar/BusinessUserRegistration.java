@@ -56,7 +56,8 @@ public class BusinessUserRegistration implements FormAction, FormActionFactory {
         UserModel user = context.getUser();
         try {
             String businessId = provisioner.provision(
-                    user.getId(), user.getUsername(), user.getFirstName(), user.getLastName());
+                    user.getId(), user.getUsername(), user.getFirstName(), user.getLastName(),
+                    context.getRealm().getName());
             user.setSingleAttribute(BusinessIdMapper.BUSINESS_ID_ATTRIBUTE, businessId);
             log.info("Registered {} as business id {}", user.getId(), businessId);
         } catch (IOException e) {

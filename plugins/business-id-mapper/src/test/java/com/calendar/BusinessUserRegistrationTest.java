@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.keycloak.authentication.AuthenticationFlowError;
 import org.keycloak.authentication.AuthenticationFlowException;
 import org.keycloak.authentication.FormContext;
+import org.keycloak.models.RealmModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakTransactionManager;
 import org.keycloak.models.UserModel;
@@ -25,6 +26,7 @@ class BusinessUserRegistrationTest {
 
     private static final String KEYCLOAK_ID = "93b5339f-a3a3-45b8-b343-25ca1b6f9d7b";
     private static final String BUSINESS_ID = "a5f79638-abfc-4ffc-bffc-c9f1d8878e56";
+    private static final String REALM = "wely-dev";
 
     private final Map<String, String> attributes = new HashMap<>();
     private final List<String> provisionCalls = new ArrayList<>();
@@ -32,7 +34,7 @@ class BusinessUserRegistrationTest {
 
     @Test
     void success_shouldProvisionTheUserAndCacheItsBusinessId() {
-        BusinessUserRegistration step = new BusinessUserRegistration((keycloakId, username, first, last) -> {
+        BusinessUserRegistration step = new BusinessUserRegistration((keycloakId, username, first, last, realm) -> {
             provisionCalls.add(keycloakId + "|" + username + "|" + first + "|" + last);
             return BUSINESS_ID;
         });
@@ -46,7 +48,7 @@ class BusinessUserRegistrationTest {
 
     @Test
     void success_shouldRollBackTheRegistration_whenUsersFails() {
-        BusinessUserRegistration step = new BusinessUserRegistration((keycloakId, username, first, last) -> {
+        BusinessUserRegistration step = new BusinessUserRegistration((keycloakId, username, first, last, realm) -> {
             throw new IOException("wely-users answered 503");
         });
 
@@ -63,7 +65,7 @@ class BusinessUserRegistrationTest {
     @Test
     void validate_shouldAcceptEveryForm() {
         // The step adds no field: the Keycloak user does not exist yet at validation time.
-        BusinessUserRegistration step = new BusinessUserRegistration((k, u, f, l) -> BUSINESS_ID);
+        BusinessUserRegistration step = new BusinessUserRegistration((k, u, f, l, r) -> BUSINESS_ID);
         boolean[] succeeded = { false };
         org.keycloak.authentication.ValidationContext context = (org.keycloak.authentication.ValidationContext)
                 Proxy.newProxyInstance(getClass().getClassLoader(),
@@ -83,7 +85,7 @@ class BusinessUserRegistrationTest {
 
     @Test
     void factory_shouldOnlyOfferRequiredOrDisabled() {
-        BusinessUserRegistration step = new BusinessUserRegistration((k, u, f, l) -> BUSINESS_ID);
+        BusinessUserRegistration step = new BusinessUserRegistration((k, u, f, l, r) -> BUSINESS_ID);
 
         assertEquals(BusinessUserRegistration.PROVIDER_ID, step.getId());
         assertEquals(2, step.getRequirementChoices().length);
@@ -121,10 +123,16 @@ class BusinessUserRegistrationTest {
                     }
                     throw new UnsupportedOperationException(method.getName());
                 });
+        RealmModel realm = (RealmModel) Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[] { RealmModel.class }, (proxy, method, args) -> switch (method.getName()) {
+                    case "getName" -> REALM;
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
         return (FormContext) Proxy.newProxyInstance(getClass().getClassLoader(),
                 new Class<?>[] { FormContext.class }, (proxy, method, args) -> switch (method.getName()) {
                     case "getUser" -> user;
                     case "getSession" -> session;
+                    case "getRealm" -> realm;
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
     }

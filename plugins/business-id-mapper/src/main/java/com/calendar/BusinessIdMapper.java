@@ -67,7 +67,7 @@ public class BusinessIdMapper extends AbstractOIDCProtocolMapper implements OIDC
 
         UserModel user = userSession.getUser();
         String cachedId = user.getFirstAttribute(BUSINESS_ID_ATTRIBUTE);
-        String businessId = resolver.resolve(user.getId(), cachedId);
+        String businessId = resolver.resolve(user.getId(), cachedId, userSession.getRealm().getName());
 
         // Keeps the fallback current, and repairs a cache that points at a lost user.
         if (!businessId.equals(cachedId)) {
