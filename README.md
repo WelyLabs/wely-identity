@@ -180,12 +180,12 @@ kcadm.sh update clients/$(kcadm.sh get clients -r wely-dev \
 ### Import du realm
 
 **Ce dépôt ne porte plus d'export du realm.** Le seul qui existe est
-`overlays/local/keycloak/wely-realm.json` dans `wely-gitops-infra`, et c'est l'overlay `local` qui
-l'importe : il le monte par-dessus `/opt/keycloak/data/import`, ce qui masquait de toute façon tout
-fichier que cette image aurait embarqué. `dev` et `prod` n'importent jamais — leur realm porte un
-état réel. Le hook `realm-settings` l'entretenait ; **il est désactivé depuis le 2026-10-24**, donc
-l'export de `platform/realm-exports/wely-dev.json` est une photo du realm vivant, que personne ne
-rejoue : une modification se fait à la main, et se vérifie dans le realm, pas dans le fichier.
+`platform/realm-exports/wely-dev.json` dans `wely-gitops-infra`, et **personne ne l'importe** :
+l'overlay `local`, qui le montait par-dessus `/opt/keycloak/data/import`, a été supprimé en
+novembre 2026. Le realm de `dev` porte un état réel, qu'aucun import ne doit écraser. Le hook
+`realm-settings` l'entretenait ; **il est désactivé depuis le 2026-10-24**. L'export est donc une
+photo du realm vivant : une modification se fait à la main, et se vérifie dans le realm, pas dans
+le fichier.
 
 Ce dépôt garde ce qui lui appartient vraiment : le thème de connexion et le plugin
 `business-id-mapper`. Une modification du realm se fait donc à un seul endroit, selon la cible :
