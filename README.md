@@ -136,16 +136,17 @@ Keycloak démarre sur `:8080` en `start-dev`, avec import automatique du realm e
 
 ## Configuration du realm
 
-**Un seul Keycloak sert tous les environnements, avec un realm chacun** (depuis le 2026-10-24) :
-`wely-dev`, `wely-prod`, `wely-local`. Les clients suivent la convention
-`wely-<service>-<env>-client`, et les exemples ci-dessous prennent `local` comme environnement.
+**Un seul Keycloak sert tous les environnements, avec un realm chacun** (depuis le 2026-10-24).
+Il n'en reste qu'un, `wely-dev` : `wely-local` a été retiré en novembre 2026 avec l'overlay du même
+nom, et `wely-prod` n'a jamais existé. Les clients suivent la convention
+`wely-<service>-<env>-client`.
 
-| | dev | local |
-|---|---|---|
-| Realm | `wely-dev` | `wely-local` |
-| Client web | `wely-web-dev-client` | `wely-web-local-client` |
-| Client MCP | `wely-mcp-dev-client` | `wely-mcp-local-client` |
-| Client admin | `wely-users-dev-client` | `wely-users-local-client` |
+| | dev |
+|---|---|
+| Realm | `wely-dev` |
+| Client web | `wely-web-dev-client` |
+| Client MCP | `wely-mcp-dev-client` |
+| Client admin | `wely-users-dev-client` |
 | Audience estampillée | `wely-api-dev` | `wely-api-local` |
 
 Chaque realm définit :
@@ -183,8 +184,8 @@ kcadm.sh update clients/$(kcadm.sh get clients -r wely-dev \
 l'importe : il le monte par-dessus `/opt/keycloak/data/import`, ce qui masquait de toute façon tout
 fichier que cette image aurait embarqué. `dev` et `prod` n'importent jamais — leur realm porte un
 état réel. Le hook `realm-settings` l'entretenait ; **il est désactivé depuis le 2026-10-24**, donc
-l'export est aujourd'hui la seule source décrivant un realm, et elle décrit `wely-local`.
-Reconstruire celui de `prod` de zéro n'a pas encore de source.
+l'export de `platform/realm-exports/wely-dev.json` est une photo du realm vivant, que personne ne
+rejoue : une modification se fait à la main, et se vérifie dans le realm, pas dans le fichier.
 
 Ce dépôt garde ce qui lui appartient vraiment : le thème de connexion et le plugin
 `business-id-mapper`. Une modification du realm se fait donc à un seul endroit, selon la cible :
