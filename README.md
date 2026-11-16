@@ -1,204 +1,74 @@
 # wely-identity
 
-Configuration Keycloak de la plateforme [Wely Calendar](https://github.com/WelyLabs/wely-platform) : export du realm, thème, et un **plugin Java custom** qui fait le pont entre l'identité Keycloak et l'identité métier.
+Auth0 configuration code for [Wely Calendar](https://github.com/WelyLabs/wely-platform). Today that is one
+post-login Action, `actions/wely-business-id/`, which puts the application identity into every token.
 
----
+## What the Action does
 
-## Le problème résolu
+Auth0 knows a user as `auth0|<id>`; the application knows them by a UUID owned by `wely-users`. The Action
+bridges the two at login, so services keep reading `jwt.getClaimAsString("businessId")` and never translate.
 
-Keycloak connaît un utilisateur par son UUID d'IdP. L'application le connaît par un UUID métier stocké en PostgreSQL. Trois options se présentaient :
+1. **Environment from the audience.** The requested API must be `wely-api-<env>`; anything else (no
+   audience, the Management API...) is denied, never guessed — the same rule as the old Keycloak realm.
+2. **Cached id.** `app_metadata.businessIds.<env>` is used when present: logins after the first never call
+   the cluster.
+3. **First login.** Otherwise it calls `wely-users`, which is idempotent on `subjectId`:
 
-| Option | Inconvénient |
+   ```
+   POST ${USERS_URL_<ENV>}/profile/provision
+   X-Internal-Secret: ${INTERNAL_SECRET_<ENV>}
+   { "subjectId": "auth0|...", "username": "...", "firstName": null|"...", "lastName": null|"..." }
+   → 200 text/plain <businessId UUID>
+   ```
+
+   `username` falls back to the email's local part. Timeout 5 s. On success the id is stored in
+   `app_metadata`; on any failure the login is denied with a "try again" message. No account gets a token
+   without a Wely user.
+4. **Claims.** `businessId` on the access and ID tokens; `authenticatedAt` (epoch seconds of the most recent
+   authentication method) on the access token, read by `wely-users` before account deletion — Auth0 does
+   not put `auth_time` in access tokens and Actions may not set it; `preferred_username` on the access token,
+   which `wely-chat` and `wely-events` sign messages and events with.
+
+### `app_metadata` layout
+
+```json
+{ "businessIds": { "dev": "<uuid>", "prod": "<uuid>" } }
+```
+
+There is a single free tenant for every environment, so `app_metadata` is shared by all of them. Keying
+the id by environment keeps a dev login from ever handing out a prod id, and the reverse.
+
+## Deploying
+
+1. Auth0 dashboard → **Actions → Library → Create Action → Build from scratch**, trigger *Login /
+   Post Login*, runtime Node 22, name `wely-business-id`.
+2. Paste `actions/wely-business-id/index.js`.
+3. **Secrets** (type them in the dashboard; they are never committed):
+   - `USERS_URL_DEV` = `https://dev-web.welylabs.app/api/v1/user-service`
+   - `INTERNAL_SECRET_DEV` = the `X-Internal-Secret` of `wely-users` dev
+   - later, `USERS_URL_PROD` / `INTERNAL_SECRET_PROD`
+4. **Deploy**, then **Actions → Triggers → post-login**: drag the Action into the flow and **Apply**.
+
+## Tenant layout
+
+One tenant, `dev-8k6vch1dvh1qxrdz.eu.auth0.com` (EU); environments are split by a `-dev` / `-prod`
+suffix on every object.
+
+| Object | dev |
 |---|---|
-| Chaque service traduit l'UUID à chaque requête | Un appel réseau supplémentaire sur **chaque** requête de **chaque** service |
-| Un webhook Keycloak à la création d'utilisateur | Fragile, asynchrone, et muet sur les utilisateurs créés hors application (console admin, fédération) |
-| **Injecter l'identifiant métier dans le token** | Retenu |
+| API | `wely-api-dev` (RS256, offline access) |
+| Database connection | `wely-dev-users` (username required) |
+| SPA | `wely-web-dev` |
+| Native | `wely-ios-dev` |
+| M2M (Management API, for `wely-users`) | `wely-users-dev` |
+| Action | `wely-business-id` (post-login) |
 
-Un **mapper de protocole Keycloak** enrichit le token à l'émission. Les services lisent `jwt.getClaimAsString("businessId")` et n'ont plus jamais à traduire quoi que ce soit.
+Clients must send `audience=wely-api-<env>` on `/authorize`, or the Action denies the login.
 
----
-
-## Création des utilisateurs et `businessId`
-
-Le plugin Java (`plugins/business-id-mapper/`) apporte deux briques à Keycloak :
-
-- **`BusinessUserRegistration`**, une étape du formulaire d'inscription (`FormAction`) : elle crée l'utilisateur dans `wely-users` dès que le compte Keycloak existe ;
-- **`BusinessIdMapper`**, un `ProtocolMapper` : à chaque émission de token, il lit le `businessId` et l'ajoute au token.
-
-```mermaid
-sequenceDiagram
-    participant U as Utilisateur
-    participant KC as Keycloak
-    participant R as BusinessUserRegistration
-    participant M as BusinessIdMapper
-    participant API as wely-users
-
-    U->>KC: formulaire d'inscription
-    KC->>KC: crée le compte (transaction ouverte)
-    KC->>R: étape suivante
-    R->>API: POST /user-service/profile/provision<br/>X-Internal-Secret
-    alt wely-users répond
-        API-->>R: businessId (idempotent sur l'UUID Keycloak)
-        R->>KC: attribut "businessId"
-    else échec
-        R->>KC: transaction annulée, page « réessayez »
-    end
-
-    U->>KC: connexion
-    KC->>M: émission du token
-    M->>API: GET /user-service/profile/resolve/{keycloakId}
-    alt connu
-        API-->>M: businessId
-    else inconnu (404)
-        M-->>KC: connexion refusée
-    else wely-users injoignable
-        KC-->>M: attribut "businessId" (repli)
-    end
-    M-->>KC: claim businessId
-```
-
-### Trois propriétés notables
-
-**L'utilisateur est créé à l'inscription, et seulement là.** L'étape s'exécute dans la transaction qui crée le compte Keycloak. Si `wely-users` échoue, elle marque cette transaction *rollback-only* avant d'échouer : Keycloak transforme l'exception en page d'erreur et, sans cela, validerait quand même le compte. Il n'existe donc pas de compte Keycloak sans utilisateur Wely. Un compte créé autrement (console d'administration) doit être provisionné explicitement, comme le compte de démo.
-
-**La connexion ne fait que lire.** Le mapper interroge `wely-users` — une requête indexée sur `keycloak_id` — et n'écrit rien. Créer l'utilisateur pendant l'émission du token, avec un délai de 3 s, laissait une première connexion lente échouer sur une page blanche (2026-10-10).
-
-**`wely-users` fait foi, l'attribut Keycloak n'est qu'un repli.** L'identifiant est recopié dans un attribut de l'utilisateur Keycloak, qui ne sert que si `wely-users` est injoignable. Un utilisateur que `wely-users` ne connaît pas est refusé, attribut ou pas : le 2026-10-02, la table `app_user` de dev a été vidée par erreur, et une version qui lisait l'attribut d'abord a continué d'émettre des tokens pour des identifiants disparus.
-
-### Découverte de l'URL
-
-```java
-String baseUrl = System.getenv("USERS_API_URL");
-if (baseUrl == null || baseUrl.isBlank()) {
-    baseUrl = isLocalDev ? "http://host.docker.internal:8082"   // Docker Compose
-                         : "http://wely-users-service:8082";     // Kubernetes
-}
-```
-
-La variable d'environnement est injectée par Kubernetes ; le repli couvre le développement local.
-
----
-
-## Account deletion
-
-An account is deleted by **wely-users**, never by Keycloak itself, so that the tombstone and `USER_DELETED` always come first:
-
-- `DELETE /user-service/profile` turns the row into a tombstone in one transaction. From that commit on, `resolve` answers **404** for the original Keycloak id, and `BusinessIdResolver` refuses the token even with a cached `businessId`: no login, refresh or token exchange can mint a token any more, whether Keycloak is up or not.
-- wely-users' `AccountDeletionWorker` then calls the Admin API with the `wely-users-<env>-client` service account, which already holds `manage-users`: `POST /admin/realms/wely-<env>/users/{id}/logout` (ends every session, revokes earlier tokens), then `DELETE /admin/realms/wely-<env>/users/{id}`. A 404 counts as done.
-- The only window in which the cache fallback can still mint a token is wely-users unreachable **and** the Keycloak user not deleted yet, normally a few seconds. Such a token gets 410 from wely-users and is refused writes by the other services. `resolve` must therefore never answer 410: `UsersServiceClientTest` pins that a 410 reads as an outage.
-- Re-authentication relies on the `auth_time` claim of the **access** token: the `auth_time` mapper of the `basic` client scope (access token claim on), a default scope of `wely-web-<env>-client`. The web app forces a fresh sign-in with `prompt=login`, and wely-users requires `auth_time` to be at most 5 minutes old.
-- The realm export stays consistent with that: the `delete_account` required action is disabled and the `delete-account` role is not a default role, so no user can delete themselves from Keycloak's account console and bypass the erasure.
-
----
-
-## Contenu du dépôt
-
-```
-├── Dockerfile                       image Keycloak + plugin + thème
-├── plugins/
-│   └── business-id-mapper/          plugin Java (Maven)
-│       └── src/main/
-│           ├── java/com/calendar/
-│           │   ├── BusinessUserRegistration.java  étape d'inscription : crée l'utilisateur
-│           │   ├── BusinessIdMapper.java          le mapper, branché sur Keycloak
-│           │   ├── BusinessIdResolver.java        wely-users d'abord, attribut en repli
-│           │   └── UsersServiceClient.java        appels HTTP à wely-users
-│           └── resources/META-INF/services/       ← enregistrement SPI des deux briques
-├── themes/                          login themes: calendar-app (the app), wely-admin (the admin console, extends it)
-├── MAPPER_CONFIGURATION.md          configuration du mapper dans la console
-└── CI-CD-PLAN.md                    stratégie de livraison
-```
-
----
-
-## Build
+## Tests
 
 ```bash
-cd plugins/business-id-mapper
-./mvnw package                       # tests + target/keycloak-1.0-SNAPSHOT.jar
+node --test
 ```
 
-Le `Dockerfile` construit une image Keycloak avec le JAR déposé dans `/opt/keycloak/providers/` et le thème dans `/opt/keycloak/themes/`.
-
----
-
-## Démarrage local
-
-Depuis la racine du projet :
-
-```bash
-docker compose up -d
-```
-
-Keycloak démarre sur `:8080` en `start-dev`, avec import automatique du realm et stockage `dev-file` local — aucun risque de toucher à une base distante.
-
----
-
-## Configuration du realm
-
-**Un seul Keycloak sert tous les environnements, avec un realm chacun** (depuis le 2026-10-24).
-Il n'en reste qu'un, `wely-dev` : `wely-local` a été retiré en novembre 2026 avec l'overlay du même
-nom, et `wely-prod` n'a jamais existé. Les clients suivent la convention
-`wely-<service>-<env>-client`.
-
-| | dev |
-|---|---|
-| Realm | `wely-dev` |
-| Client web | `wely-web-dev-client` |
-| Client MCP | `wely-mcp-dev-client` |
-| Client admin | `wely-users-dev-client` |
-| Audience estampillée | `wely-api-dev` | `wely-api-local` |
-
-Chaque realm définit :
-
-- le client public **`wely-web-<env>-client`** utilisé par le frontend (flow OIDC) ;
-- le client confidentiel **`wely-users-<env>-client`** (`client_credentials`) permettant à `wely-users` d'appeler l'Admin API ;
-- le mapper **`businessId`** attaché au scope `business-scope`, qui injecte le claim ;
-- le mapper **`audience-mapper`** du même scope, qui estampille `wely-api-<env>` — il nomme **la ressource visée**, pas le client appelant. L'inverse reviendrait à accepter tous les jetons.
-- the public client **`wely-mcp-<env>-client`**, which an MCP client (Claude) signs in through to reach
-  `wely-mcp`. PKCE S256 and `business-scope` are required: without that scope the token is valid
-  and every call behind the gateway fails for want of a `businessId`. It exists because the realm
-  refuses anonymous dynamic client registration (Trusted Hosts policy), so a client cannot
-  register itself; the dev realm got it from `wely-gitops-infra`'s realm-settings hook, since
-  Keycloak skips an existing realm on import — **that hook is disabled since 2026-10-24** (it
-  blocked every ArgoCD sync), so a change to the dev realm is a manual operation today.
-
-Voir [`MAPPER_CONFIGURATION.md`](MAPPER_CONFIGURATION.md) pour la procédure de configuration dans la console.
-
-### Secret du client confidentiel
-
-L'export porte `"secret": "${KC_CLIENT_SECRET}"` pour `wely-users-local-client`. Keycloak résout les placeholders `${VARIABLE}` depuis l'environnement **au moment de l'import**, donc aucun secret réel n'est versionné et aucune étape manuelle n'est nécessaire : il suffit que `KC_CLIENT_SECRET` soit présent dans l'environnement du conteneur Keycloak, et qu'il corresponde à `KEYCLOAK_CLIENT_SECRET` côté `wely-users`.
-
-Sur un realm déjà existant, la valeur se change dans la console, ou :
-
-```bash
-kcadm.sh update clients/$(kcadm.sh get clients -r wely-dev \
-    -q clientId=wely-users-dev-client --fields id --format csv --noquotes) \
-  -r wely-dev -s secret="$KEYCLOAK_CLIENT_SECRET"
-```
-
-### Import du realm
-
-**Ce dépôt ne porte plus d'export du realm.** Le seul qui existe est
-`platform/realm-exports/wely-dev.json` dans `wely-gitops-infra`, et **personne ne l'importe** :
-l'overlay `local`, qui le montait par-dessus `/opt/keycloak/data/import`, a été supprimé en
-novembre 2026. Le realm de `dev` porte un état réel, qu'aucun import ne doit écraser. Le hook
-`realm-settings` l'entretenait ; **il est désactivé depuis le 2026-10-24**. L'export est donc une
-photo du realm vivant : une modification se fait à la main, et se vérifie dans le realm, pas dans
-le fichier.
-
-Ce dépôt garde ce qui lui appartient vraiment : le thème de connexion et le plugin
-`business-id-mapper`. Une modification du realm se fait donc à un seul endroit, selon la cible :
-l'export pour un realm créé de zéro, le hook pour le realm de `dev` qui existe déjà.
-
-Keycloak **ignore un realm déjà existant** à l'import, donc le drapeau `--import-realm` est sans
-danger ; il reste malgré tout hors des environnements dont le realm porte un état réel.
-
----
-
-## Limites connues
-
-- **Un secret réel figure encore dans l'historique Git de ce dépôt.** Il a été révoqué le 2026-10-01 : le secret du client a été régénéré via l'API Admin et rescellé. L'export courant ne porte qu'un placeholder.
-- **Appels HTTP bloquants** (`java.net.http`) — Keycloak n'est pas réactif, il n'y a rien à qui rendre un résultat asynchrone. Lecture à chaque token : 3 s, avec l'attribut en repli. Création à l'inscription : 10 s, car on attend un formulaire et non un token. Si `wely-users` répond après le délai, il peut garder un utilisateur dont le compte Keycloak a été annulé : sans conséquence pour la connexion, mais une ligne orpheline.
-- **Deleting a user from the admin console bypasses erasure.** wely-users keeps the row and the other services keep their data: `OrphanUserReaper` only checks users whose account was never confirmed. Delete accounts through the application.
-- **Keycloak's own events outlive a deleted account.** In dev, LOGIN, REGISTER and LOGOUT events are kept 30 days (wely-gitops-infra `overlays/dev/realm/realm-settings.json`), and the Admin API can only clear them realm-wide.
+Node's built-in runner, no dependency: `fetch` and the Auth0 `api` object are mocked.
