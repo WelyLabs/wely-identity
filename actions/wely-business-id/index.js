@@ -5,6 +5,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const PROVISION_TIMEOUT_MS = 5000;
 const UNAVAILABLE_MESSAGE =
   "Nous n'avons pas pu créer votre compte pour le moment. Réessayez dans quelques instants.";
+const UNVERIFIED_MESSAGE =
+  'Confirmez votre adresse e-mail avant de vous connecter : le lien vous a été envoyé.';
 
 exports.onExecutePostLogin = async (event, api) => {
   // The audience names the environment; anything else is refused, never guessed.
@@ -14,6 +16,15 @@ exports.onExecutePostLogin = async (event, api) => {
     return;
   }
   const env = match[1];
+
+  // Auth0 sends the verification mail but lets the account in meanwhile: signing up logged people
+  // straight into the app, mail unread. Refused BEFORE provisioning, so an address nobody has
+  // answered never gets a wely-users profile. `!== true` and not a falsy test: an identity that
+  // does not carry the field at all is not evidence of a verified address either.
+  if (event.user.email_verified !== true) {
+    api.access.deny(UNVERIFIED_MESSAGE);
+    return;
+  }
 
   // app_metadata is shared by every environment of the tenant, so ids are kept per env.
   const businessIds = event.user.app_metadata?.businessIds ?? {};

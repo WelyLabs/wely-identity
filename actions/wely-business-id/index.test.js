@@ -21,6 +21,7 @@ function makeEvent(overrides = {}) {
       email: 'theo@example.com',
       given_name: 'Theo',
       family_name: 'B',
+      email_verified: true,
       app_metadata: {},
     },
     ...overrides,
@@ -158,4 +159,45 @@ test('omits authenticatedAt when no authentication method is reported', async ()
   await onExecutePostLogin(event, api);
 
   assert.deepEqual(claims(api.accessToken), { businessId: BUSINESS_ID, preferred_username: 'theo' });
+});
+
+test('an unverified address is refused', async () => {
+    const event = makeEvent();
+    event.user.email_verified = false;
+    const api = makeApi();
+    const fetchMock = mock.method(globalThis, 'fetch', async () => {
+        throw new Error('wely-users must not be called for an unverified address');
+    });
+
+    await onExecutePostLogin(event, api);
+
+    assert.equal(api.access.deny.mock.callCount(), 1);
+    assert.match(api.access.deny.mock.calls[0].arguments[0], /Confirmez votre adresse/);
+    // The point of refusing here rather than later: no profile is created for a mailbox
+    // nobody has answered, and no businessId is handed out.
+    assert.equal(fetchMock.mock.callCount(), 0);
+    assert.equal(api.user.setAppMetadata.mock.callCount(), 0);
+    assert.equal(api.accessToken.setCustomClaim.mock.callCount(), 0);
+});
+
+test('an identity with no email_verified field is refused too', async () => {
+    const event = makeEvent();
+    delete event.user.email_verified;
+    const api = makeApi();
+
+    await onExecutePostLogin(event, api);
+
+    assert.equal(api.access.deny.mock.callCount(), 1);
+    assert.equal(api.accessToken.setCustomClaim.mock.callCount(), 0);
+});
+
+test('the audience is still checked before the address', async () => {
+    const event = makeEvent({ resource_server: { identifier: 'https://example.com/api' } });
+    event.user.email_verified = false;
+    const api = makeApi();
+
+    await onExecutePostLogin(event, api);
+
+    assert.equal(api.access.deny.mock.callCount(), 1);
+    assert.match(api.access.deny.mock.calls[0].arguments[0], /wely-api-/);
 });
