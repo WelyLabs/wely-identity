@@ -80,8 +80,16 @@ async function provision(event, env) {
   }
 }
 
+// wely-users accepts 3 to 30 of [a-zA-Z0-9_-]. Social users have no username: GitHub gives a
+// nickname (its login, the only name when the email is private), Google an email such as
+// jean.dupont@gmail.com. Whatever comes in is coerced to the rule; the hashtag tells duplicates apart.
+const USERNAME_MIN = 3;
+const USERNAME_MAX = 30;
+
 function usernameOf(user) {
-  return user.username ?? user.email?.split('@')[0] ?? null;
+  const raw = user.username ?? user.nickname ?? user.email?.split('@')[0] ?? '';
+  const cleaned = raw.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, USERNAME_MAX);
+  return cleaned ? cleaned.padEnd(USERNAME_MIN, '_') : 'user';
 }
 
 // Epoch seconds of the most recent authentication method, or undefined when there is none.
