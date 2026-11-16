@@ -32,6 +32,11 @@ exports.onExecutePostLogin = async (event, api) => {
 
   api.accessToken.setCustomClaim('businessId', businessId);
   api.idToken.setCustomClaim('businessId', businessId);
+  // wely-chat and wely-events sign messages and events with it; Keycloak put it in every access token.
+  const username = usernameOf(event.user);
+  if (username) {
+    api.accessToken.setCustomClaim('preferred_username', username);
+  }
 
   const authenticatedAt = latestAuthentication(event.authentication?.methods ?? []);
   if (authenticatedAt !== undefined) {
@@ -55,7 +60,7 @@ async function provision(event, env) {
       headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': secret },
       body: JSON.stringify({
         subjectId: user.user_id,
-        username: user.username ?? user.email?.split('@')[0] ?? null,
+        username: usernameOf(user),
         firstName: user.given_name ?? null,
         lastName: user.family_name ?? null,
       }),
@@ -73,6 +78,10 @@ async function provision(event, env) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+function usernameOf(user) {
+  return user.username ?? user.email?.split('@')[0] ?? null;
 }
 
 // Epoch seconds of the most recent authentication method, or undefined when there is none.

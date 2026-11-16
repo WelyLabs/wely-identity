@@ -58,6 +58,7 @@ test('uses the cached businessId without calling wely-users', async () => {
   assert.equal(api.user.setAppMetadata.mock.callCount(), 0);
   assert.deepEqual(claims(api.accessToken), {
     businessId: BUSINESS_ID,
+    preferred_username: 'theo',
     authenticatedAt: Date.parse('2026-11-16T10:05:00.000Z') / 1000,
   });
   assert.deepEqual(claims(api.idToken), { businessId: BUSINESS_ID });
@@ -156,5 +157,5 @@ test('omits authenticatedAt when no authentication method is reported', async ()
 
   await onExecutePostLogin(event, api);
 
-  assert.deepEqual(claims(api.accessToken), { businessId: BUSINESS_ID });
+  assert.deepEqual(claims(api.accessToken), { businessId: BUSINESS_ID, preferred_username: 'theo' });
 });

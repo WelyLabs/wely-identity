@@ -26,7 +26,8 @@ bridges the two at login, so services keep reading `jwt.getClaimAsString("busine
    without a Wely user.
 4. **Claims.** `businessId` on the access and ID tokens; `authenticatedAt` (epoch seconds of the most recent
    authentication method) on the access token, read by `wely-users` before account deletion — Auth0 does
-   not put `auth_time` in access tokens and Actions may not set it.
+   not put `auth_time` in access tokens and Actions may not set it; `preferred_username` on the access token,
+   which `wely-chat` and `wely-events` sign messages and events with.
 
 ### `app_metadata` layout
 
