@@ -101,6 +101,19 @@ renewal and Auth0's SNI. Verification took about two minutes to see the record.
 Without a custom domain you still get the typeface, the colours, the radius and the canvas, and the form stays
 centred with no brand panel — the degraded form of this design, not a different one.
 
+### Tenant settings the screen depends on
+
+Not in any file, and invisible until something looks wrong:
+
+```bash
+auth0 api patch tenants/settings --data '{"enabled_locales":["fr"],"friendly_name":"Wely"}'
+```
+
+`friendly_name` is what the form's subtitle names — left unset it prints the raw tenant id,
+"Log in to dev-8k6vch1dvh1qxrdz". And `enabled_locales` holds **French alone**, as the Keycloak theme did:
+Auth0 picks the form's language from the browser, so leaving `en` enabled served an English form beside a
+French brand panel to every non-French browser. One language, because the panel has one.
+
 ### Known limits
 
 - **The button is flat blue, not the gradient.** A theme carries one colour per role, and the form's inner
