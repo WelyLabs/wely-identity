@@ -84,17 +84,22 @@ auth0 ul templates update --template-file universal-login/page-template.liquid
 
 The theme alone is also editable by hand in **Branding → Universal Login → Customization**; the template is not.
 
-**Applied to `dev-8k6vch1dvh1qxrdz` on 2026-11-16**, theme `LmCiZPngQMjmXktqmjXo9UCKBknAorzB`.
+**Applied to `dev-8k6vch1dvh1qxrdz` on 2026-11-16**: theme `LmCiZPngQMjmXktqmjXo9UCKBknAorzB`, and the
+template on `auth.welylabs.app`.
 
 ### What this needs from the tenant
 
-`branding/templates/universal-login` answers **403, "This feature requires at least one custom domain to be
-configured for the tenant"** — measured on this tenant, not read in a plan table. It is the domain that gates
-it, not the plan. The theme has no such condition.
+`branding/templates/universal-login` needs a **custom domain**: without one it answers 403, "This feature
+requires at least one custom domain to be configured for the tenant". It is the domain that gates it, not the
+plan — measured, not read in a plan table. Adding one on a free tenant needs a verified credit card on file
+(`POST custom-domains` answers 403 until there is one); Auth0 charges nothing within the free limits.
 
-So until a custom domain exists you get the typeface, the colours, the radius and the canvas, and the form
-stays centred with no brand panel — the degraded form of this design, not a different one. That is the state
-of `dev-8k6vch1dvh1qxrdz` today.
+`auth.welylabs.app` is that domain since 2026-11-16 (`cd_JeImnwI78F59GPU9`, auth0_managed_certs, Let's Encrypt).
+Its Cloudflare CNAME points at the tenant's edge and **must stay DNS-only** — proxying it breaks certificate
+renewal and Auth0's SNI. Verification took about two minutes to see the record.
+
+Without a custom domain you still get the typeface, the colours, the radius and the canvas, and the form stays
+centred with no brand panel — the degraded form of this design, not a different one.
 
 ### Known limits
 
