@@ -1,7 +1,8 @@
 # wely-identity
 
-Auth0 configuration code for [Wely Calendar](https://github.com/WelyLabs/wely-platform). Today that is one
-post-login Action, `actions/wely-business-id/`, which puts the application identity into every token.
+Auth0 configuration code for [Wely Calendar](https://github.com/WelyLabs/wely-platform): a post-login Action,
+`actions/wely-business-id/`, which puts the application identity into every token, and the Universal Login
+screen, `universal-login/`.
 
 ## What the Action does
 
@@ -48,6 +49,87 @@ the id by environment keeps a dev login from ever handing out a prod id, and the
    - `INTERNAL_SECRET_DEV` = the `X-Internal-Secret` of `wely-users` dev
    - later, `USERS_URL_PROD` / `INTERNAL_SECRET_PROD`
 4. **Deploy**, then **Actions → Triggers → post-login**: drag the Action into the flow and **Apply**.
+
+## The login and sign-up screen
+
+`universal-login/` carries the screen the user lands on, ported from the Keycloak theme it replaces:
+brand panel on the OKLCH gradient to the left, the form to the right on the application's warm canvas,
+three colour fields drifting behind it, the demo account under the sign-in form. The application already
+sends people here — `AuthService.login()` and `AuthService.signup()` (`screen_hint=signup`) — so there is
+no page to write in `wely-web`.
+
+**The work is split in two, and the split is the point.** Auth0 renders the form itself, and its markup
+carries hashed class names that change without notice, so nothing styles its inside:
+
+| File | Owns | Applied through |
+|---|---|---|
+| `page-template.liquid` | everything around the form: layout, brand panel, canvas, background, footer | `branding/templates/universal-login` |
+| `theme.json` | the form itself: colours, Outfit, 12px radius, field and button style | `branding/themes` |
+| `custom-text-fr.json` | the few French strings Auth0 gets wrong | `prompts/login/custom-text/fr` |
+
+### Deploying
+
+With the [Auth0 CLI](https://github.com/auth0/auth0-cli), logged in to the tenant:
+
+```bash
+# First time: no theme exists, so create it.
+auth0 api post branding/themes --data "$(cat universal-login/theme.json)"
+
+# Afterwards: patch the one that is there.
+auth0 api patch "branding/themes/$(auth0 api get branding/themes/default | jq -r .themeId)" \
+  --data "$(cat universal-login/theme.json)"
+
+# Once the tenant has a custom domain:
+auth0 ul templates update --template-file universal-login/page-template.liquid
+
+auth0 api put prompts/login/custom-text/fr --data "$(cat universal-login/custom-text-fr.json)"
+```
+
+Auth0's French calls the sign-up link "Inscription", a noun where the link names an action — the same thing
+Keycloak's bundle did, and `messages_fr.properties` overrode it the same way. A PUT replaces that prompt's
+whole override, so the file holds every string we change and nothing else.
+
+The theme alone is also editable by hand in **Branding → Universal Login → Customization**; the template is not.
+
+**Applied to `dev-8k6vch1dvh1qxrdz` on 2026-11-16**: theme `LmCiZPngQMjmXktqmjXo9UCKBknAorzB`, and the
+template on `auth.welylabs.app`.
+
+### What this needs from the tenant
+
+`branding/templates/universal-login` needs a **custom domain**: without one it answers 403, "This feature
+requires at least one custom domain to be configured for the tenant". It is the domain that gates it, not the
+plan — measured, not read in a plan table. Adding one on a free tenant needs a verified credit card on file
+(`POST custom-domains` answers 403 until there is one); Auth0 charges nothing within the free limits.
+
+`auth.welylabs.app` is that domain since 2026-11-16 (`cd_JeImnwI78F59GPU9`, auth0_managed_certs, Let's Encrypt).
+Its Cloudflare CNAME points at the tenant's edge and **must stay DNS-only** — proxying it breaks certificate
+renewal and Auth0's SNI. Verification took about two minutes to see the record.
+
+Without a custom domain you still get the typeface, the colours, the radius and the canvas, and the form stays
+centred with no brand panel — the degraded form of this design, not a different one.
+
+### Tenant settings the screen depends on
+
+Not in any file, and invisible until something looks wrong:
+
+```bash
+auth0 api patch tenants/settings --data '{"enabled_locales":["fr"],"friendly_name":"Wely"}'
+```
+
+`friendly_name` is what the form's subtitle names — left unset it prints the raw tenant id,
+"Log in to dev-8k6vch1dvh1qxrdz". And `enabled_locales` holds **French alone**, as the Keycloak theme did:
+Auth0 picks the form's language from the browser, so leaving `en` enabled served an English form beside a
+French brand panel to every non-French browser. One language, because the panel has one.
+
+### Known limits
+
+- **The button is flat blue, not the gradient.** A theme carries one colour per role, and the form's inner
+  markup is not ours to select. The gradient stays on the brand panel.
+- **The fonts come from jsDelivr.** The Keycloak theme bundled them; an Auth0 page has nowhere to host a file.
+  `font-display: swap` and the system fallback mean a CDN outage costs the typeface, not the login.
+- **The radius is 10px, not the app's 12.** The Branding API caps `button_border_radius` and
+  `input_border_radius` at 10; only `widget_corner_radius` takes 12. The title is capped at 150% likewise.
+- **French only**, like the theme before it. The form's own wording follows the tenant's languages.
 
 ## Tenant layout
 

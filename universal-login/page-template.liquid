@@ -1,0 +1,441 @@
+{% comment %}
+  Wely's Universal Login page.
+
+  THE DIVISION OF LABOUR IS THE WHOLE POINT. Auth0 renders the form itself — the widget — and
+  its markup carries hashed class names that change without notice, so nothing here styles the
+  inside of it: that is theme.json's job, applied through the Branding Theme API. This template
+  owns only what surrounds the widget, which is where the Keycloak theme's composition lived:
+  the brand panel on the gradient, the warm canvas, the drifting colour fields, the footer.
+
+  Ported from the Keycloak theme (wely-identity, themes/calendar-app/login) minus everything
+  that spoke PatternFly.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="{{ locale }}">
+  <head>
+    {%- auth0:head -%}
+    <style>
+      /*
+       * THE COLOURS ARE WRITTEN HERE ON PURPOSE. Auth0 serves this page, not the application, so
+       * it cannot read wely-web's stylesheet. This block COPIES the tokens of
+       * wely-web/src/styles.scss and must follow them; every other value goes through it.
+       */
+      :root {
+        /* The application has no dark theme, so neither has the screen that leads into it. */
+        color-scheme: light;
+
+        --wely-blue: #2563eb;
+        --wely-orange: #f97316;
+        /*
+         * The app's --accent-gradient, interpolated in OKLCH instead of sRGB. Between this blue
+         * and this orange, sRGB passes through a dull grey-mauve that showed across the whole
+         * panel; OKLCH keeps the chroma and goes through violet and pink instead. The sRGB line
+         * stays first as the fallback for a browser without colour-space interpolation.
+         */
+        --wely-gradient: linear-gradient(135deg, #3b82f6 0%, #f97316 100%);
+        --wely-gradient: linear-gradient(135deg in oklch, #3b82f6 0%, #f97316 100%);
+
+        --wely-canvas: #fcfaf7;
+        --wely-card: #ffffff;
+        --wely-border: #ebe7e0;
+        --wely-ink: #1a1a1a;
+        --wely-ink-2: #6b6b6b;
+        --wely-on-brand: #ffffff;
+        --wely-success: #16a34a;
+
+        --wely-radius: 12px;
+      }
+
+      /*
+       * shortcut: the faces come from jsDelivr, where the Keycloak theme bundled them — an Auth0
+       * page has nowhere to host a file. font-display:swap plus the system fallback means a CDN
+       * outage costs the typeface, not the login. Upgrade when the tenant has a custom domain
+       * and something of ours can serve /fonts.
+       */
+      @font-face {
+        font-family: 'Outfit';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/outfit@5.3.0/files/outfit-latin-400-normal.woff2') format('woff2');
+      }
+
+      @font-face {
+        font-family: 'Outfit';
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/outfit@5.3.0/files/outfit-latin-500-normal.woff2') format('woff2');
+      }
+
+      @font-face {
+        font-family: 'Outfit';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/outfit@5.3.0/files/outfit-latin-600-normal.woff2') format('woff2');
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+      }
+
+      body {
+        background-color: var(--wely-canvas);
+        color: var(--wely-ink);
+        font-family: Outfit, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+
+      /* ── Layout: brand on the left, the widget on the right ──────────────────────────── */
+
+      .wely-shell {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+        display: grid;
+        /* minmax(0, 1fr) and not 1fr: a 1fr track never shrinks below its content's min-content
+           width, and the brand text would push the page wider than the screen. */
+        grid-template-columns: 44% minmax(0, 1fr);
+        grid-template-areas: 'brand signin';
+      }
+
+      .wely-brand {
+        grid-area: brand;
+        position: relative;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        padding: clamp(1.5rem, 4.5vh, 3.5rem);
+        color: var(--wely-on-brand);
+        background-image: var(--wely-gradient);
+      }
+
+      /* A soft light in one corner gives the two-stop gradient some depth. */
+      .wely-brand::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          radial-gradient(60rem 36rem at -10% 110%, rgb(255 255 255 / 0.14), transparent 60%),
+          radial-gradient(30rem 20rem at 110% -10%, rgb(255 255 255 / 0.10), transparent 60%);
+      }
+
+      .wely-brand > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      /* Three groups: the name at the top, the pitch in the middle, the note at the bottom. The
+         free space splits between these two auto margins, with no extra markup. */
+      .wely-name,
+      .wely-pitch {
+        margin-bottom: auto;
+      }
+
+      .wely-name {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: clamp(1.5rem, 3.6vh, 2rem);
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      /* The monogram as a white tile: on the gradient band, the gradient goes into the W. */
+      .wely-name svg {
+        flex-shrink: 0;
+        width: 2.25rem;
+        height: 2.25rem;
+      }
+
+      .wely-pitch {
+        max-width: 26rem;
+      }
+
+      .wely-title {
+        margin: 0 0 clamp(0.875rem, 2.6vh, 1.625rem);
+        font-size: clamp(1.25rem, 3.2vh, 1.75rem);
+        font-weight: 600;
+        line-height: 1.25;
+        letter-spacing: -0.01em;
+      }
+
+      .wely-points {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: clamp(0.625rem, 1.8vh, 1rem);
+      }
+
+      .wely-points li {
+        position: relative;
+        padding-inline-start: 1.75rem;
+        font-size: clamp(0.875rem, 1.9vh, 1rem);
+        line-height: 1.5;
+        /* Dimmed through the colour, not opacity: opacity would fight the entrance animation,
+           which ends at 1, and the text would blink at the end of it. */
+        color: color-mix(in oklab, var(--wely-on-brand) 95%, transparent);
+      }
+
+      /* The check marks are drawn in CSS, as in the Keycloak theme: one shape, no asset. */
+      .wely-points li::before {
+        content: '';
+        position: absolute;
+        inset-inline-start: 0.25rem;
+        top: 0.4em;
+        width: 0.3125rem;
+        height: 0.625rem;
+        border: solid currentColor;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+      }
+
+      .wely-note {
+        font-size: 0.8125rem;
+        color: color-mix(in oklab, var(--wely-on-brand) 85%, transparent);
+      }
+
+      /* ── The widget column ───────────────────────────────────────────────────────────────
+       * The widget's own frame, radius, fields and button come from theme.json. Here it only
+       * gets placed and given a width.
+       */
+      .wely-signin {
+        grid-area: signin;
+        place-self: center;
+        width: 400px;
+        max-width: calc(100% - 3rem);
+        margin: 1.5rem 0;
+      }
+
+      /* ── Card foot: demo credentials and where the password goes ────────────────────── */
+
+      .wely-foot {
+        display: flex;
+        flex-direction: column;
+        gap: 0.875rem;
+        margin-top: clamp(1rem, 2.5vh, 1.625rem);
+      }
+
+      .wely-demo {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        margin: 0;
+        padding: 0.75rem 0.875rem;
+        border-radius: var(--wely-radius);
+        background-color: color-mix(in oklab, var(--wely-blue) 6%, var(--wely-card));
+        font-size: 0.8125rem;
+        line-height: 1.4;
+      }
+
+      .wely-demo-label {
+        font-weight: 600;
+        color: var(--wely-blue);
+      }
+
+      /* Selectable in one go, to paste into the fields. */
+      .wely-demo-credentials {
+        color: var(--wely-ink);
+        user-select: all;
+      }
+
+      .wely-secure {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+        font-size: 0.75rem;
+        line-height: 1.4;
+        color: var(--wely-ink-2);
+      }
+
+      /* The dot says nothing the sentence does not, hence aria-hidden on it. */
+      .wely-dot {
+        flex-shrink: 0;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background-color: var(--wely-success);
+      }
+
+      /* ── Living background ───────────────────────────────────────────────────────────────
+       * Three blurred colour fields drifting slowly — felt, not watched. Only "transform" is
+       * animated: each 90px-blurred layer is rasterised once and then moved by the compositor.
+       * The cycles (28, 34, 40 s) share no useful divisor, so the fields never line up again.
+       */
+      html::before,
+      body::before,
+      body::after {
+        content: '';
+        position: fixed;
+        inset: -30%;
+        z-index: 0;
+        pointer-events: none;
+        filter: blur(90px);
+        will-change: transform;
+      }
+
+      html::before {
+        background: radial-gradient(38rem 30rem at 80% 12%,
+          color-mix(in oklab, var(--wely-blue) 18%, transparent) 0%, transparent 70%);
+        animation: wely-field-1 34s ease-in-out infinite alternate;
+      }
+
+      body::before {
+        background: radial-gradient(42rem 32rem at 70% 92%,
+          color-mix(in oklab, var(--wely-orange) 18%, transparent) 0%, transparent 70%);
+        animation: wely-field-2 40s ease-in-out infinite alternate;
+      }
+
+      body::after {
+        background: radial-gradient(34rem 26rem at 58% 45%,
+          color-mix(in oklab, var(--wely-blue) 10%, transparent) 0%, transparent 72%);
+        animation: wely-field-3 28s ease-in-out infinite alternate;
+      }
+
+      @keyframes wely-field-1 {
+        from { transform: translate3d(0, 0, 0) scale(1); }
+        to { transform: translate3d(-4%, 3%, 0) scale(1.08); }
+      }
+
+      @keyframes wely-field-2 {
+        from { transform: translate3d(0, 0, 0) scale(1.05); }
+        to { transform: translate3d(5%, -3%, 0) scale(1); }
+      }
+
+      @keyframes wely-field-3 {
+        from { transform: translate3d(0, 0, 0) scale(1); }
+        to { transform: translate3d(3%, 4%, 0) scale(1.06); }
+      }
+
+      /* ── Entrance: the screen appears line by line ───────────────────────────────────── */
+
+      @keyframes wely-enter {
+        from {
+          opacity: 0;
+          transform: translateY(0.25rem);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* "backwards": invisible during the delay, not shown then hidden. The widget itself is
+         left alone, so its first field takes focus and typing from the first instant. */
+      .wely-name,
+      .wely-title,
+      .wely-points li,
+      .wely-note,
+      .wely-foot {
+        animation: wely-enter 320ms ease-out backwards;
+      }
+
+      .wely-title { animation-delay: 60ms; }
+      .wely-points li:nth-child(1) { animation-delay: 120ms; }
+      .wely-points li:nth-child(2) { animation-delay: 180ms; }
+      .wely-points li:nth-child(3) { animation-delay: 240ms; }
+      .wely-note { animation-delay: 300ms; }
+      .wely-foot { animation-delay: 240ms; }
+
+      /*
+       * Narrow screens: the panel shrinks to a band carrying the name only, above the widget.
+       * The pitch is for a first look on a desktop; on a phone the form comes first.
+       *
+       * AT THE END ON PURPOSE: same specificity as the rules it overrides, so it must come after.
+       */
+      @media (max-width: 860px) {
+        .wely-shell {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: auto 1fr;
+          grid-template-areas: 'brand' 'signin';
+        }
+
+        .wely-brand {
+          padding: 1rem 1.25rem;
+        }
+
+        .wely-pitch,
+        .wely-note {
+          display: none;
+        }
+
+        .wely-name {
+          margin-bottom: 0;
+          font-size: 1.375rem;
+        }
+
+        .wely-name svg {
+          width: 1.75rem;
+          height: 1.75rem;
+        }
+      }
+
+      /* WCAG 2.3.3: fields stay, frozen; nothing enters. */
+      @media (prefers-reduced-motion: reduce) {
+        html::before,
+        body::before,
+        body::after,
+        .wely-name,
+        .wely-title,
+        .wely-points li,
+        .wely-note,
+        .wely-foot {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wely-shell">
+      <aside class="wely-brand">
+        <div class="wely-name">
+          {% comment %} The monogram is inlined rather than linked: an Auth0 page has nowhere to host it. {% endcomment %}
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="4 4 112 112" aria-hidden="true" focusable="false"><defs><linearGradient id="wely-mark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"/><stop offset=".167" stop-color="#8274f7"/><stop offset=".333" stop-color="#b168e4"/><stop offset=".5" stop-color="#d45fc2"/><stop offset=".667" stop-color="#ed5c96"/><stop offset=".833" stop-color="#fa6263"/><stop offset="1" stop-color="#f97316"/></linearGradient></defs><rect x="4" y="4" width="112" height="112" rx="30" fill="#ffffff"/><path d="M28 40 L44 84 L60 54 L76 84 L92 40" fill="none" stroke="url(#wely-mark)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="31" r="6.5" fill="url(#wely-mark)"/></svg>
+          Wely
+        </div>
+
+        <div class="wely-pitch">
+          {% comment %} The sentence follows the screen: arriving and coming back are not the same moment. {% endcomment %}
+          <h1 class="wely-title">
+            {% if prompt.name == 'signup' or prompt.name == 'signup-id' or prompt.name == 'signup-password' %}
+              Votre agenda, partagé avec les gens qui comptent
+            {% else %}
+              Retrouvez votre agenda, vos amis et vos conversations
+            {% endif %}
+          </h1>
+          <ul class="wely-points">
+            <li>Vos événements et ceux de vos amis sur un même calendrier</li>
+            <li>Des conversations en temps réel autour de chaque sortie</li>
+            <li>Vos communautés, vos souvenirs, vos dépenses partagées</li>
+          </ul>
+        </div>
+
+        <span class="wely-note">welylabs.app · un projet d'apprentissage, ouvert et public</span>
+      </aside>
+
+      <main class="wely-signin">
+        {%- auth0:widget -%}
+
+        {% comment %} The demo account belongs under the sign-in form and nowhere else. {% endcomment %}
+        {% if prompt.name == 'login' or prompt.name == 'login-id' or prompt.name == 'login-password' %}
+          <div class="wely-foot">
+            <p class="wely-demo">
+              <span class="wely-demo-label">Compte de démo</span>
+              <span class="wely-demo-credentials">demo@welylabs.app · Demo-Wely-2026</span>
+            </p>
+            <p class="wely-secure">
+              <span class="wely-dot" aria-hidden="true"></span>Connexion sécurisée · OpenID Connect
+            </p>
+          </div>
+        {% endif %}
+      </main>
+    </div>
+  </body>
+</html>
