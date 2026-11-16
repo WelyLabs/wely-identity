@@ -159,3 +159,26 @@ test('omits authenticatedAt when no authentication method is reported', async ()
 
   assert.deepEqual(claims(api.accessToken), { businessId: BUSINESS_ID, preferred_username: 'theo' });
 });
+
+test('coerces a social profile to a valid wely username', async () => {
+  const cases = [
+    [{ email: 'jean.dupont@gmail.com' }, 'jean_dupont'],
+    [{ nickname: 'octo-cat' }, 'octo-cat'],
+    [{ nickname: 'jo' }, 'jo_'],
+    [{ email: 'élodie+wely@x.fr' }, '_lodie_wely'],
+    [{ nickname: 'a'.repeat(40) }, 'a'.repeat(30)],
+    [{}, 'user'],
+  ];
+  for (const [profile, expected] of cases) {
+    const fetch = mock.method(globalThis, 'fetch', async () => new Response(BUSINESS_ID, { status: 200 }));
+    const event = makeEvent();
+    event.user = { user_id: 'google-oauth2|1', app_metadata: {}, ...profile };
+    const api = makeApi();
+
+    await onExecutePostLogin(event, api);
+
+    assert.equal(JSON.parse(fetch.mock.calls[0].arguments[1].body).username, expected, JSON.stringify(profile));
+    assert.equal(claims(api.accessToken).preferred_username, expected);
+    mock.restoreAll();
+  }
+});
