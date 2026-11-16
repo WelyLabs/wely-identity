@@ -71,20 +71,30 @@ carries hashed class names that change without notice, so nothing styles its ins
 With the [Auth0 CLI](https://github.com/auth0/auth0-cli), logged in to the tenant:
 
 ```bash
-auth0 ul templates update --template-file universal-login/page-template.liquid
-auth0 api patch "branding/themes/$(auth0 api get branding/themes/default --json | jq -r .themeId)" \
+# First time: no theme exists, so create it.
+auth0 api post branding/themes --data "$(cat universal-login/theme.json)"
+
+# Afterwards: patch the one that is there.
+auth0 api patch "branding/themes/$(auth0 api get branding/themes/default | jq -r .themeId)" \
   --data "$(cat universal-login/theme.json)"
+
+# Once the tenant has a custom domain:
+auth0 ul templates update --template-file universal-login/page-template.liquid
 ```
 
-If no theme exists yet, `auth0 api post branding/themes --data "$(cat universal-login/theme.json)"` creates it.
 The theme alone is also editable by hand in **Branding → Universal Login → Customization**; the template is not.
+
+**Applied to `dev-8k6vch1dvh1qxrdz` on 2026-11-16**, theme `LmCiZPngQMjmXktqmjXo9UCKBknAorzB`.
 
 ### What this needs from the tenant
 
-The page template endpoint wants a **custom domain**, and on a free tenant it answers `402 Payment Required`
-until a card is on file. The theme has no such condition. So on a bare free tenant you get the typeface, the
-colours, the radius and the canvas, and the form stays centred with no brand panel — which is the degraded
-form of this design, not a different one.
+`branding/templates/universal-login` answers **403, "This feature requires at least one custom domain to be
+configured for the tenant"** — measured on this tenant, not read in a plan table. It is the domain that gates
+it, not the plan. The theme has no such condition.
+
+So until a custom domain exists you get the typeface, the colours, the radius and the canvas, and the form
+stays centred with no brand panel — the degraded form of this design, not a different one. That is the state
+of `dev-8k6vch1dvh1qxrdz` today.
 
 ### Known limits
 
@@ -92,6 +102,8 @@ form of this design, not a different one.
   markup is not ours to select. The gradient stays on the brand panel.
 - **The fonts come from jsDelivr.** The Keycloak theme bundled them; an Auth0 page has nowhere to host a file.
   `font-display: swap` and the system fallback mean a CDN outage costs the typeface, not the login.
+- **The radius is 10px, not the app's 12.** The Branding API caps `button_border_radius` and
+  `input_border_radius` at 10; only `widget_corner_radius` takes 12. The title is capped at 150% likewise.
 - **French only**, like the theme before it. The form's own wording follows the tenant's languages.
 
 ## Tenant layout
