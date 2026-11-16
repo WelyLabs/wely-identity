@@ -1,7 +1,8 @@
 # wely-identity
 
-Auth0 configuration code for [Wely Calendar](https://github.com/WelyLabs/wely-platform). Today that is one
-post-login Action, `actions/wely-business-id/`, which puts the application identity into every token.
+Auth0 configuration code for [Wely Calendar](https://github.com/WelyLabs/wely-platform): a post-login Action,
+`actions/wely-business-id/`, which puts the application identity into every token, and the Universal Login
+screen, `universal-login/`.
 
 ## What the Action does
 
@@ -48,6 +49,50 @@ the id by environment keeps a dev login from ever handing out a prod id, and the
    - `INTERNAL_SECRET_DEV` = the `X-Internal-Secret` of `wely-users` dev
    - later, `USERS_URL_PROD` / `INTERNAL_SECRET_PROD`
 4. **Deploy**, then **Actions → Triggers → post-login**: drag the Action into the flow and **Apply**.
+
+## The login and sign-up screen
+
+`universal-login/` carries the screen the user lands on, ported from the Keycloak theme it replaces:
+brand panel on the OKLCH gradient to the left, the form to the right on the application's warm canvas,
+three colour fields drifting behind it, the demo account under the sign-in form. The application already
+sends people here — `AuthService.login()` and `AuthService.signup()` (`screen_hint=signup`) — so there is
+no page to write in `wely-web`.
+
+**The work is split in two, and the split is the point.** Auth0 renders the form itself, and its markup
+carries hashed class names that change without notice, so nothing styles its inside:
+
+| File | Owns | Applied through |
+|---|---|---|
+| `page-template.liquid` | everything around the form: layout, brand panel, canvas, background, footer | `branding/templates/universal-login` |
+| `theme.json` | the form itself: colours, Outfit, 12px radius, field and button style | `branding/themes` |
+
+### Deploying
+
+With the [Auth0 CLI](https://github.com/auth0/auth0-cli), logged in to the tenant:
+
+```bash
+auth0 ul templates update --template-file universal-login/page-template.liquid
+auth0 api patch "branding/themes/$(auth0 api get branding/themes/default --json | jq -r .themeId)" \
+  --data "$(cat universal-login/theme.json)"
+```
+
+If no theme exists yet, `auth0 api post branding/themes --data "$(cat universal-login/theme.json)"` creates it.
+The theme alone is also editable by hand in **Branding → Universal Login → Customization**; the template is not.
+
+### What this needs from the tenant
+
+The page template endpoint wants a **custom domain**, and on a free tenant it answers `402 Payment Required`
+until a card is on file. The theme has no such condition. So on a bare free tenant you get the typeface, the
+colours, the radius and the canvas, and the form stays centred with no brand panel — which is the degraded
+form of this design, not a different one.
+
+### Known limits
+
+- **The button is flat blue, not the gradient.** A theme carries one colour per role, and the form's inner
+  markup is not ours to select. The gradient stays on the brand panel.
+- **The fonts come from jsDelivr.** The Keycloak theme bundled them; an Auth0 page has nowhere to host a file.
+  `font-display: swap` and the system fallback mean a CDN outage costs the typeface, not the login.
+- **French only**, like the theme before it. The form's own wording follows the tenant's languages.
 
 ## Tenant layout
 

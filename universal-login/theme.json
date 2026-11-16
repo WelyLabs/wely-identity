@@ -1,0 +1,58 @@
+{
+  "displayName": "wely",
+  "borders": {
+    "button_border_radius": 12,
+    "button_border_weight": 0,
+    "buttons_style": "rounded",
+    "input_border_radius": 12,
+    "input_border_weight": 1,
+    "inputs_style": "rounded",
+    "show_widget_shadow": true,
+    "widget_border_weight": 1,
+    "widget_corner_radius": 12
+  },
+  "colors": {
+    "base_focus_color": "#2563eb",
+    "base_hover_color": "#2563eb",
+    "body_text": "#1a1a1a",
+    "captcha_widget_theme": "light",
+    "error": "#dc2626",
+    "header": "#1a1a1a",
+    "icons": "#6b6b6b",
+    "input_background": "#ffffff",
+    "input_border": "#ebe7e0",
+    "input_filled_text": "#1a1a1a",
+    "input_labels_placeholders": "#6b6b6b",
+    "links_focused_components": "#2563eb",
+    "primary_button": "#2563eb",
+    "primary_button_label": "#ffffff",
+    "secondary_button_border": "#ebe7e0",
+    "secondary_button_label": "#1a1a1a",
+    "success": "#16a34a",
+    "widget_background": "#ffffff",
+    "widget_border": "#ebe7e0"
+  },
+  "fonts": {
+    "body_text": { "bold": false, "size": 87.5 },
+    "buttons_text": { "bold": true, "size": 100 },
+    "font_url": "https://cdn.jsdelivr.net/npm/@fontsource/outfit@5.3.0/files/outfit-latin-400-normal.woff2",
+    "input_labels": { "bold": true, "size": 81.25 },
+    "links": { "bold": true, "size": 87.5 },
+    "links_style": "normal",
+    "reference_text_size": 16,
+    "subtitle": { "bold": false, "size": 93.75 },
+    "title": { "bold": true, "size": 162.5 }
+  },
+  "page_background": {
+    "background_color": "#fcfaf7",
+    "background_image_url": "",
+    "page_layout": "center"
+  },
+  "widget": {
+    "header_text_alignment": "left",
+    "logo_height": 36,
+    "logo_position": "none",
+    "logo_url": "",
+    "social_buttons_layout": "bottom"
+  }
+}
