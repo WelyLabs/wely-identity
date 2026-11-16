@@ -65,6 +65,7 @@ carries hashed class names that change without notice, so nothing styles its ins
 |---|---|---|
 | `page-template.liquid` | everything around the form: layout, brand panel, canvas, background, footer | `branding/templates/universal-login` |
 | `theme.json` | the form itself: colours, Outfit, 12px radius, field and button style | `branding/themes` |
+| `custom-text-fr.json` | the few French strings Auth0 gets wrong | `prompts/login/custom-text/fr` |
 
 ### Deploying
 
@@ -80,7 +81,13 @@ auth0 api patch "branding/themes/$(auth0 api get branding/themes/default | jq -r
 
 # Once the tenant has a custom domain:
 auth0 ul templates update --template-file universal-login/page-template.liquid
+
+auth0 api put prompts/login/custom-text/fr --data "$(cat universal-login/custom-text-fr.json)"
 ```
+
+Auth0's French calls the sign-up link "Inscription", a noun where the link names an action — the same thing
+Keycloak's bundle did, and `messages_fr.properties` overrode it the same way. A PUT replaces that prompt's
+whole override, so the file holds every string we change and nothing else.
 
 The theme alone is also editable by hand in **Branding → Universal Login → Customization**; the template is not.
 
